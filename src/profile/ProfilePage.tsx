@@ -11,6 +11,7 @@ import {
   FriendsTab,
 } from './ProfileParts'
 import { SettingsSheet, PhotoViewer } from './Overlays'
+import { LoadingState } from '../ui/LoadingState'
 
 function ProfileBody() {
   const { tab, loading } = useProfile()
@@ -48,7 +49,7 @@ function ProfileBody() {
           <main className="flex-1 min-w-0 pb-24 md:pb-10 md:pt-5">
             <div className="mx-auto w-full max-w-xl lg:max-w-2xl bg-white md:rounded-2xl md:border md:border-gray-100 md:shadow-sm overflow-hidden">
               {loading ? (
-                <p className="px-6 py-20 text-center text-[14px] text-muted">Loading profile…</p>
+                <LoadingState className="px-6 py-20" label="Loading profile…" />
               ) : (
                 <>
                   <ProfileHeader />

@@ -18,6 +18,7 @@ import { useNotify } from './NotifyContext'
 import { ensureThreadForPlan } from '../data/threads'
 import { PhotoPicker } from './PhotoPicker'
 import { ManageSheet, NotifyShell } from './shell'
+import { LoadingState } from '../ui/LoadingState'
 
 export function ChatPage() {
   const { threadId = '' } = useParams()
@@ -101,7 +102,7 @@ export function ChatPage() {
   if ((loading || !ready) && !thread) {
     return (
       <NotifyShell tip="Loading chat…">
-        <p className="mx-auto max-w-xl py-20 text-center text-muted">Loading…</p>
+        <LoadingState className="mx-auto max-w-xl py-20" label="Loading chat…" />
       </NotifyShell>
     )
   }

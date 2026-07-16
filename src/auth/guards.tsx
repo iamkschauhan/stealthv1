@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 import { ONBOARDING_STEPS } from '../onboarding/flow'
+import { LoadingState } from '../ui/LoadingState'
 
 function resumeOnboardingPath(step?: string): string {
   const match = ONBOARDING_STEPS.find((s) => s.id === step)
@@ -13,11 +14,7 @@ function resumeOnboardingPath(step?: string): string {
 
 /** Full-screen wait while Firebase restores session. */
 export function AuthBootScreen() {
-  return (
-    <div className="flex min-h-dvh items-center justify-center bg-white text-sm text-muted">
-      Loading…
-    </div>
-  )
+  return <LoadingState fullScreen label="Loading…" />
 }
 
 /** App routes that require a signed-in, onboarded user. */

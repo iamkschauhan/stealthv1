@@ -8,6 +8,7 @@ import { FeedOverlays } from './feed/overlays'
 import { FilterSheet } from './feed/FilterSheet'
 import { SearchOverlay } from './feed/SearchOverlay'
 import { DatePicker } from './feed/DatePicker'
+import { LoadingState } from './ui/LoadingState'
 
 function MadePlansBanner() {
   const { upcomingCount } = useFeed()
@@ -64,8 +65,8 @@ function FeedBody() {
             <MadePlansBanner />
             <div className="mx-auto w-full max-w-xl lg:max-w-2xl flex flex-col gap-2 md:gap-4">
               {loading ? (
-                <div className="rounded-2xl bg-white md:border md:border-gray-100 px-6 py-16 text-center">
-                  <p className="text-[14px] text-muted">Loading plans…</p>
+                <div className="rounded-2xl bg-white md:border md:border-gray-100 px-6 py-16">
+                  <LoadingState label="Loading plans…" />
                 </div>
               ) : error ? (
                 <div className="rounded-2xl bg-white md:border md:border-gray-100 px-6 py-16 text-center">

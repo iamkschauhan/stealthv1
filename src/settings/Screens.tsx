@@ -33,6 +33,7 @@ import {
   SettingsShell,
   SettingsToggle,
 } from './ui'
+import { LoadingState } from '../ui/LoadingState'
 
 export function PreferencesScreen() {
   const navigate = useNavigate()
@@ -691,7 +692,7 @@ export function BlockedAccountsScreen() {
   return (
     <SettingsShell title="Blocked accounts" backTo="/profile/settings/privacy">
       {loading ? (
-        <p className="py-20 text-center text-[14px] text-muted">Loading…</p>
+        <LoadingState className="py-20" />
       ) : rows.length === 0 ? (
         <p className="py-20 text-center text-[14px] text-muted">
           Accounts you block will appear here.

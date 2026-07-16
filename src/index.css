@@ -44,3 +44,18 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+@keyframes loading-run-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(2deg);
+  }
+}
+
+.loading-run {
+  animation: loading-run-bob 0.55s ease-in-out infinite;
+  user-select: none;
+}

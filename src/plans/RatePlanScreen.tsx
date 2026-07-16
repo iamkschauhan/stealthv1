@@ -9,6 +9,7 @@ import {
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { usePlans, type GoingPerson } from './PlansContext'
 import { PlansShell } from './shell'
+import { LoadingState } from '../ui/LoadingState'
 
 const TRAITS = [
   { id: 'respectful', label: 'Respectful', Icon: ThumbsUp },
@@ -40,7 +41,7 @@ export function RatePlanScreen() {
   if (loading && !plan) {
     return (
       <PlansShell tip="Loading…">
-        <p className="mx-auto max-w-xl py-20 text-center text-muted">Loading…</p>
+        <LoadingState className="mx-auto max-w-xl py-20" label="Loading…" />
       </PlansShell>
     )
   }

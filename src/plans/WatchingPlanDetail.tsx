@@ -22,6 +22,7 @@ import { useAuth } from '../auth'
 import { SUGGESTED } from './data'
 import { usePlans, type GoingPerson } from './PlansContext'
 import { ConfirmDialog, PlansShell, SharePlanModal, Sheet } from './shell'
+import { LoadingState } from '../ui/LoadingState'
 
 type JoinStatus = 'idle' | 'waiting' | 'requested' | 'joined'
 
@@ -63,7 +64,7 @@ export function WatchingPlanDetail() {
   if (loading && !plan) {
     return (
       <PlansShell tip="Loading…">
-        <p className="mx-auto max-w-xl py-20 text-center text-muted">Loading plan…</p>
+        <LoadingState className="mx-auto max-w-xl py-20" label="Loading plan…" />
       </PlansShell>
     )
   }

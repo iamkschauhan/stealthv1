@@ -18,6 +18,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { SUGGESTED } from './data'
 import { usePlans, type GoingPerson } from './PlansContext'
 import { PlansShell, SharePlanModal, Sheet } from './shell'
+import { LoadingState } from '../ui/LoadingState'
 
 export function RequestedPlanDetail() {
   const { id = '' } = useParams()
@@ -40,7 +41,7 @@ export function RequestedPlanDetail() {
   if (loading && !plan) {
     return (
       <PlansShell tip="Loading…">
-        <p className="mx-auto max-w-xl py-20 text-center text-muted">Loading plan…</p>
+        <LoadingState className="mx-auto max-w-xl py-20" label="Loading plan…" />
       </PlansShell>
     )
   }

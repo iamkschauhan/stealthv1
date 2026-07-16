@@ -10,6 +10,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { PICKER_PHOTOS, TAG_FRIENDS } from './data'
 import { usePlans } from './PlansContext'
 import { PlansShell, Sheet } from './shell'
+import { LoadingState } from '../ui/LoadingState'
 
 export function UploadPhotosScreen() {
   const { id = '' } = useParams()
@@ -37,7 +38,7 @@ export function UploadPhotosScreen() {
   if (loading && !plan) {
     return (
       <PlansShell tip="Loading…">
-        <p className="mx-auto max-w-xl py-20 text-center text-muted">Loading…</p>
+        <LoadingState className="mx-auto max-w-xl py-20" label="Loading…" />
       </PlansShell>
     )
   }

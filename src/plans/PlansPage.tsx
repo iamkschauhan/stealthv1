@@ -22,6 +22,7 @@ import {
 } from './data'
 import { usePlans } from './PlansContext'
 import { PlansShell, SharePlanModal, Sheet } from './shell'
+import { LoadingState } from '../ui/LoadingState'
 
 const TABS: PlansTab[] = ['Watching', 'Requested', 'Upcoming', 'Past']
 
@@ -142,9 +143,9 @@ export function PlansPage() {
         </div>
 
         {loading ? (
-          <p className="flex-1 flex items-center justify-center px-8 py-20 text-center text-[14px] text-muted">
-            Loading plans…
-          </p>
+          <div className="flex flex-1 items-center justify-center px-8 py-20">
+            <LoadingState label="Loading plans…" />
+          </div>
         ) : error ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 px-8 py-20">
             <p className="text-center text-[14px] text-red-500">{error}</p>

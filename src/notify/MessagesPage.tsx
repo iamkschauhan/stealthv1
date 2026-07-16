@@ -3,6 +3,7 @@ import { ChevronLeft, MessageSquareText, MoreHorizontal, Trash2 } from 'lucide-r
 import { Link, useNavigate } from 'react-router-dom'
 import { useNotify } from './NotifyContext'
 import { ManageSheet, NotifyShell } from './shell'
+import { LoadingState } from '../ui/LoadingState'
 
 export function MessagesPage() {
   const { loading, error, threads, deleteThread, refresh } = useNotify()
@@ -28,9 +29,9 @@ export function MessagesPage() {
         </header>
 
         {loading ? (
-          <p className="flex-1 flex items-center justify-center px-6 py-16 text-[14px] text-muted">
-            Loading…
-          </p>
+          <div className="flex flex-1 items-center justify-center px-6 py-16">
+            <LoadingState />
+          </div>
         ) : error ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 py-16">
             <p className="text-center text-[14px] text-red-500">{error}</p>
