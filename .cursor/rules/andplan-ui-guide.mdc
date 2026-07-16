@@ -1,0 +1,81 @@
+---
+description: StealthApp UI — feed, auth, plans. Always follow.
+alwaysApply: true
+---
+
+# StealthApp UI Guide
+
+Stack: React + TypeScript + Tailwind v4 + Lucide + Inter. Source art: `Home Feed.png` + `FEED/*.png` + `CREATE PLAN/*.png` + `mANAGE PLAN/*.png` + `PAST/*.png` + `REQUEST/*.png` + `UPCOMING/*.png` + `WATCHING TAB/*.png` + `sharemessage/*.png` + `Login/*.png` + `Profile/*.png` + `SETTINGS/*.png` + `NOTIFY AND MESSAGE/*.png`.
+
+## Brands
+
+| Surface | Brand | Notes |
+|---|---|---|
+| Home feed / Profile / Plans | **StealthApp** | `Stealth` = ink, `App` = `#207dff` (`BrandMark` / `BrandTitle`) |
+| Onboarding (`Login/`) | **StealthApp** | Serif logo (Playfair); gold/orange accent `#e8a03a` |
+
+## Feed / Profile tokens (`src/index.css`)
+
+`brand #207dff` · `accent #ff5a3d` · `avatar-ring #e8c96a` · `feed-gap #eef1fb` · `pill #f3f6fe` · `muted #8b92a5` · `ink #1a1a1a`
+
+## Onboarding tokens
+
+`onboard-gold #e8a03a` · `onboard-input #f3f3f5` · `onboard-disabled #ececee` · toggle green `#34c759` · primary CTA = `ink` pill when enabled
+
+## Layout
+
+- **Onboarding**: mobile full-bleed; `md+` split layout (brand panel + form). Never a lonely phone column on desktop.
+- **Feed / Profile / Settings**: mobile bottom nav; `md+` sidebar; `xl+` right tip panel. Content in a centered card (`max-w-xl` / `lg:max-w-2xl`). Never a lonely phone column on desktop. Profile tabs: Photos · About · Activities · Friends.
+
+## Profile patterns
+
+- Avatar + edit pencil, verified badge, reputation badges, Link account CTA.
+- Settings = bottom sheet (mobile) / centered sheet (web) → routes in `src/settings/`.
+- Match `Profile/` + `SETTINGS/` mocks for empty + filled states.
+
+## Settings patterns
+
+- List rows with chevrons; green toggles; blue Save in header when editing.
+- Destructive actions red; logout/delete use confirm modals (type DELETE).
+- Notification categories use Push/Email segmented control.
+
+## Notifications & Messages
+
+- Bell tab → `/notifications`; mail icon → `/messages` (unread badge).
+- Notif rows: avatar + bold entities + time + optional Deny/Accept/Join; `…` manage sheet.
+- Messages: plan threads with unread tint + badge; chat bubbles (gray in / brand out).
+- Chat: search + hit nav, Manage → View plan, paperclip → Select photos, sticky composer.
+
+## Feed interactions (`FEED/`)
+
+- Filter sheet + date range picker; search Plans/People overlay.
+- Join confirm → Going / waiting pool; expand sheet for extra plan info.
+- Post `…`: share modal, request-to-edit, report post route.
+- Spots opens people-joined sheet; couples plan + made-plans banner variants.
+
+## Create plan (`CREATE PLAN/`)
+
+- `+` nav → `/create` form; Post → posting splash → host plan view.
+- Activity / location search pickers; date + time sheets; type pills (Friendship yellow / Dating pink / casual purple).
+- Host Manage → Edit / Invite / Share / Requests / Delete; Going Remove · Invited Delete invite; View All sheets.
+
+## My Plans (`PAST/` + `REQUEST/` + `UPCOMING/` + `WATCHING TAB/`)
+
+- Calendar nav → `/plans` (Watching · Requested · Upcoming · Past tabs).
+- Past: Ended badge · sort · detail Upload / Rate / Delete; upload + rate flows.
+- Requested: Closes badge · sort by Closing time · detail Requested CTA (cancel) · Going sheet · Chat disabled · Share.
+- Upcoming: Starts badge · sort by Starting time · Going CTA (leave / confirmed) · Chat · Add to calendar · Share.
+- Watching: Closes badge · Join / waiting pool / couples link · Watching stop · Share · Request to edit.
+- Follow `src/plans/PLAN.md`.
+
+## Share messages (`sharemessage/`)
+
+- Prefill copy by role: found · hosting · going · went · hostedPast · inviteReserved · profile · appInvite.
+- Clipboard / SMS / email / native share = message + URL. See `src/share/PLAN.md`.
+
+## Do / Don’t
+
+- ✅ Reuse onboarding shell + shared inputs for auth; feed shells for profile.
+- ✅ Follow `src/onboarding/flow.ts`, `src/profile/PLAN.md`, `src/settings/PLAN.md`, `src/plans/PLAN.md`, `src/share/PLAN.md`.
+- ❌ Don’t mix feed blue CTAs into auth screens (use black + gold).
+- ❌ No purple/cream AI defaults.
