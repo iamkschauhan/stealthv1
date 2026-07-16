@@ -121,6 +121,7 @@ export const TIME_OPTIONS = [
 ]
 
 export type Person = {
+  uid?: string
   name: string
   avatar: string
   role?: string
@@ -130,6 +131,7 @@ export type Person = {
 
 export type PlanRequest = {
   id: string
+  uid?: string
   name: string
   avatar: string
   kind: 'join' | 'location' | 'time' | 'spots'

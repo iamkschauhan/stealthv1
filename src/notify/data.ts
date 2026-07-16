@@ -26,6 +26,7 @@ export type Thread = {
   preview: string
   unread: number
   planLabel?: string
+  planId?: string
   messages: ChatMessage[]
 }
 

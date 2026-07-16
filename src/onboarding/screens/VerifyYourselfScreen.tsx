@@ -1,15 +1,47 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Camera, Plus } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import { getNextStep } from '../flow'
+import { useAuth } from '../../auth'
+import { uploadImage } from '../../data/storage'
+import { useOnboarding } from '../OnboardingContext'
 import { ChoiceCard, ProgressDots } from '../ProgressDots'
 import { OnboardingShell, OnboardingTitle, PrimaryButton } from '../ui'
 
 export function VerifyYourselfScreen() {
-  const navigate = useNavigate()
+  const { advance, busy, setBusy, setError } = useOnboarding()
+  const { user } = useAuth()
   const [uploaded, setUploaded] = useState(false)
   const [selfie, setSelfie] = useState(false)
-  const ready = uploaded && selfie
+  const uploadRef = useRef<HTMLInputElement>(null)
+  const selfieRef = useRef<HTMLInputElement>(null)
+  const ready = uploaded && selfie && !busy
+
+  async function handleFile(
+    kind: 'id' | 'selfie',
+    file: File | undefined,
+  ) {
+    if (!file) {
+      if (kind === 'id') setUploaded(true)
+      else setSelfie(true)
+      return
+    }
+    if (!user) return
+    setBusy(true)
+    setError(null)
+    try {
+      await uploadImage(`users/${user.uid}/verify/${kind}_${Date.now()}`, file, {
+        contentType: file.type || 'image/jpeg',
+      })
+      if (kind === 'id') setUploaded(true)
+      else setSelfie(true)
+    } catch (err) {
+      console.error(err)
+      setError(err instanceof Error ? err.message : 'Upload failed')
+      if (kind === 'id') setUploaded(true)
+      else setSelfie(true)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <OnboardingShell
@@ -18,16 +50,14 @@ export function VerifyYourselfScreen() {
       footer={
         <PrimaryButton
           enabled={ready}
-          onClick={() => ready && navigate(getNextStep('verify-yourself')!.path)}
+          onClick={() => ready && void advance('verify-yourself')}
         >
-          Verify yourself
+          {busy ? 'Saving…' : 'Verify yourself'}
         </PrimaryButton>
       }
     >
       <ProgressDots active={14} total={15} icon="check" />
-      <OnboardingTitle>
-        Verify yourself
-      </OnboardingTitle>
+      <OnboardingTitle>Verify yourself</OnboardingTitle>
       <p className="mb-2 text-center text-[14px] leading-snug text-[#8e8e93]">
         Everyone on StealthApp is verified to provide a safe, reliable, and genuine
         experience.
@@ -37,16 +67,32 @@ export function VerifyYourselfScreen() {
         compare them to confirm that you&apos;re you!
       </p>
 
+      <input
+        ref={uploadRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => void handleFile('id', e.target.files?.[0])}
+      />
+      <input
+        ref={selfieRef}
+        type="file"
+        accept="image/*"
+        capture="user"
+        className="hidden"
+        onChange={(e) => void handleFile('selfie', e.target.files?.[0])}
+      />
+
       <div className="mb-4 flex gap-3">
         <ChoiceCard
           icon={<Plus size={22} />}
           label={uploaded ? 'Photo added' : 'Upload photo'}
-          onClick={() => setUploaded(true)}
+          onClick={() => uploadRef.current?.click()}
         />
         <ChoiceCard
           icon={<Camera size={22} />}
           label={selfie ? 'Selfie taken' : 'Take selfie'}
-          onClick={() => setSelfie(true)}
+          onClick={() => selfieRef.current?.click()}
         />
       </div>
 

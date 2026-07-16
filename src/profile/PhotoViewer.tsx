@@ -7,7 +7,7 @@ export function PhotoViewer() {
     setViewingPhoto,
     deleteConfirm,
     setDeleteConfirm,
-    patch,
+    removeGalleryPhoto,
   } = useProfile()
 
   if (viewingPhoto === null) return null
@@ -15,10 +15,10 @@ export function PhotoViewer() {
   if (!src) return null
 
   function remove() {
-    const next = user.photos.filter((_, i) => i !== viewingPhoto)
-    patch({ photos: next })
-    setDeleteConfirm(false)
-    setViewingPhoto(null)
+    void removeGalleryPhoto(src).then(() => {
+      setDeleteConfirm(false)
+      setViewingPhoto(null)
+    })
   }
 
   return (

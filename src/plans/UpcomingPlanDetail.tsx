@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Calendar,
   Clock,
@@ -12,24 +12,36 @@ import {
   Users,
 } from 'lucide-react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
-import {
-  SUGGESTED,
-  UPCOMING_GOING,
-  findUpcomingPlan,
-} from './data'
+import { SUGGESTED } from './data'
+import { usePlans, type GoingPerson } from './PlansContext'
 import { PlansShell, SharePlanModal, Sheet } from './shell'
 
 export function UpcomingPlanDetail() {
   const { id = '' } = useParams()
-  const plan = findUpcomingPlan(id)
+  const { loading, getCard, leaveOrCancel, loadPeople } = usePlans()
+  const plan = getCard(id)
   const navigate = useNavigate()
   const [seeMore, setSeeMore] = useState(false)
   const [goingOpen, setGoingOpen] = useState(false)
+  const [people, setPeople] = useState<GoingPerson[]>([])
   const [menuOpen, setMenuOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [leaveOpen, setLeaveOpen] = useState(false)
   const [confirmedOpen, setConfirmedOpen] = useState(false)
   const [calendarToast, setCalendarToast] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (goingOpen && id) void loadPeople(id).then(setPeople)
+  }, [goingOpen, id, loadPeople])
+
+  if (loading && !plan) {
+    return (
+      <PlansShell tip="Loading…">
+        <p className="mx-auto max-w-xl py-20 text-center text-muted">Loading plan…</p>
+      </PlansShell>
+    )
+  }
 
   if (!plan) return <Navigate to="/plans?tab=Upcoming" replace />
 
@@ -42,6 +54,7 @@ export function UpcomingPlanDetail() {
   const closesLabel = plan.closesOn || 'Dec 12 at 3:00 PM'
 
   function onGoingTap() {
+    if (plan!.hostedByMe) return
     if (isConfirmed) setConfirmedOpen(true)
     else setLeaveOpen(true)
   }
@@ -151,7 +164,7 @@ export function UpcomingPlanDetail() {
 
             <div className="space-y-2.5">
               <Link
-                to="/messages/golf"
+                to={`/messages/${plan.id}`}
                 className="flex w-full items-center justify-center rounded-full bg-ink py-3.5 text-[15px] font-semibold text-white"
               >
                 Chat
@@ -236,17 +249,27 @@ export function UpcomingPlanDetail() {
 
       <Sheet open={goingOpen} title="Going" onClose={() => setGoingOpen(false)}>
         <ul className="px-4 py-2 pb-6">
-          {UPCOMING_GOING.map((p) => (
-            <li key={p.name} className="flex items-center gap-3 py-3">
-              <img src={p.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
-              <p className="text-[15px] font-semibold">
-                {p.name}
-                {p.role ? (
-                  <span className="font-normal text-muted"> · {p.role}</span>
-                ) : null}
-              </p>
-            </li>
-          ))}
+          {people.length === 0 ? (
+            <li className="py-6 text-center text-[14px] text-muted">No one yet</li>
+          ) : (
+            people.map((p) => (
+              <li key={p.uid} className="flex items-center gap-3 py-3">
+                {p.avatar ? (
+                  <img src={p.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-pill text-[14px] font-bold">
+                    {p.name.slice(0, 1)}
+                  </span>
+                )}
+                <p className="text-[15px] font-semibold">
+                  {p.name}
+                  {p.role ? (
+                    <span className="font-normal text-muted"> · {p.role}</span>
+                  ) : null}
+                </p>
+              </li>
+            ))
+          )}
         </ul>
       </Sheet>
 
@@ -299,8 +322,14 @@ export function UpcomingPlanDetail() {
               </button>
               <button
                 type="button"
-                className="py-3.5 text-[15px] font-semibold text-brand"
-                onClick={() => navigate('/plans?tab=Upcoming')}
+                disabled={busy}
+                className="py-3.5 text-[15px] font-semibold text-brand disabled:opacity-50"
+                onClick={() => {
+                  setBusy(true)
+                  void leaveOrCancel(plan.id)
+                    .then(() => navigate('/plans?tab=Upcoming'))
+                    .finally(() => setBusy(false))
+                }}
               >
                 Leave
               </button>

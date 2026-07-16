@@ -33,9 +33,18 @@ type PickerKind =
 
 export function CreatePlanForm({ mode = 'create' }: { mode?: 'create' | 'edit' }) {
   const navigate = useNavigate()
-  const { draft, patchDraft, resetDraft, setSuggestOpen } = useCreate()
+  const {
+    draft,
+    patchDraft,
+    resetDraft,
+    setSuggestOpen,
+    saveEdits,
+    deleteLivePlan,
+    busy,
+    postedPlanId,
+  } = useCreate()
   const [picker, setPicker] = useState<PickerKind>(null)
-  const ready = draftReady(draft)
+  const ready = draftReady(draft) && !busy
   const banner = ACTIVITY_BANNERS[draft.activity]
 
   function cancel() {
@@ -301,13 +310,13 @@ export function CreatePlanForm({ mode = 'create' }: { mode?: 'create' | 'edit' }
           {mode === 'edit' ? (
             <button
               type="button"
+              disabled={busy}
               onClick={() => {
                 if (confirm('Delete this plan?')) {
-                  resetDraft()
-                  navigate('/home')
+                  void deleteLivePlan().then(() => navigate('/home'))
                 }
               }}
-              className="w-full rounded-full bg-red-50 py-4 text-[15px] font-semibold text-red-500"
+              className="w-full rounded-full bg-red-50 py-4 text-[15px] font-semibold text-red-500 disabled:opacity-60"
             >
               Delete plan
             </button>
@@ -318,7 +327,9 @@ export function CreatePlanForm({ mode = 'create' }: { mode?: 'create' | 'edit' }
             onClick={() => {
               if (!ready) return
               if (mode === 'edit') {
-                navigate('/create/plan')
+                void saveEdits().then(() =>
+                  navigate(postedPlanId ? `/create/plan/${postedPlanId}` : '/create/plan'),
+                )
               } else {
                 navigate('/create/posting')
               }
@@ -328,7 +339,7 @@ export function CreatePlanForm({ mode = 'create' }: { mode?: 'create' | 'edit' }
               ready ? 'bg-brand text-white' : 'bg-onboard-disabled text-[#c7c7cc]',
             ].join(' ')}
           >
-            {mode === 'edit' ? 'Update' : 'Post'}
+            {busy ? 'Saving…' : mode === 'edit' ? 'Update' : 'Post'}
           </button>
         </div>
       </div>

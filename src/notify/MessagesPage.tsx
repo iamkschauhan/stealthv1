@@ -5,10 +5,10 @@ import { useNotify } from './NotifyContext'
 import { ManageSheet, NotifyShell } from './shell'
 
 export function MessagesPage() {
-  const { threads, deleteThread } = useNotify()
+  const { loading, error, threads, deleteThread, refresh } = useNotify()
   const navigate = useNavigate()
   const [manageId, setManageId] = useState<string | null>(null)
-  const empty = threads.length === 0
+  const empty = !loading && !error && threads.length === 0
 
   return (
     <NotifyShell tip="Plan chats live here. Open a thread to message the group or view the plan.">
@@ -27,7 +27,22 @@ export function MessagesPage() {
           </h1>
         </header>
 
-        {empty ? (
+        {loading ? (
+          <p className="flex-1 flex items-center justify-center px-6 py-16 text-[14px] text-muted">
+            Loading…
+          </p>
+        ) : error ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 py-16">
+            <p className="text-center text-[14px] text-red-500">{error}</p>
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              className="rounded-full bg-brand px-5 py-2.5 text-[13px] font-semibold text-white"
+            >
+              Retry
+            </button>
+          </div>
+        ) : empty ? (
           <div className="flex-1 flex flex-col items-center justify-center px-6 py-16">
             <MessageSquareText size={72} strokeWidth={1.25} className="text-brand/25" />
             <p className="mt-4 text-[14px] text-muted text-center">
@@ -85,7 +100,7 @@ export function MessagesPage() {
         <button
           type="button"
           onClick={() => {
-            if (manageId) deleteThread(manageId)
+            if (manageId) void deleteThread(manageId)
             setManageId(null)
           }}
           className="flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-left hover:bg-feed-gap"

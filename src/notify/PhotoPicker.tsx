@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ChevronDown, X } from 'lucide-react'
 import { PICKER_PHOTOS } from './data'
+
+export type PickerItem = { url: string; blob?: Blob }
 
 export function PhotoPicker({
   open,
@@ -9,18 +11,37 @@ export function PhotoPicker({
 }: {
   open: boolean
   onClose: () => void
-  onAdd: (urls: string[]) => void
+  onAdd: (items: PickerItem[]) => void
 }) {
+  const fileRef = useRef<HTMLInputElement>(null)
   const [selected, setSelected] = useState<string[]>([])
+  const [local, setLocal] = useState<Record<string, Blob>>({})
 
   if (!open) return null
 
-  const preview = selected[0] ?? PICKER_PHOTOS[0]
+  const gallery = [
+    ...Object.keys(local),
+    ...PICKER_PHOTOS.filter((u) => !local[u]),
+  ]
+  const preview = selected[0] ?? gallery[0]
 
   function toggle(url: string) {
     setSelected((prev) =>
       prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url],
     )
+  }
+
+  function onFiles(files: FileList | null) {
+    if (!files?.length) return
+    const map = { ...local }
+    const urls: string[] = []
+    Array.from(files).forEach((file) => {
+      const url = URL.createObjectURL(file)
+      map[url] = file
+      urls.push(url)
+    })
+    setLocal(map)
+    setSelected((prev) => [...prev, ...urls])
   }
 
   return (
@@ -42,7 +63,7 @@ export function PhotoPicker({
           type="button"
           disabled={selected.length === 0}
           onClick={() => {
-            onAdd(selected)
+            onAdd(selected.map((url) => ({ url, blob: local[url] })))
             setSelected([])
             onClose()
           }}
@@ -57,18 +78,37 @@ export function PhotoPicker({
 
       <div className="mx-auto w-full max-w-3xl flex-1 flex flex-col md:flex-row overflow-hidden">
         <div className="aspect-square md:aspect-auto md:w-1/2 md:min-h-[320px] bg-black/5 shrink-0">
-          <img src={preview} alt="" className="h-full w-full object-cover" />
+          {preview ? (
+            <img src={preview} alt="" className="h-full w-full object-cover" />
+          ) : null}
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 pb-6">
-          <button
-            type="button"
-            className="flex items-center gap-1 py-3 text-[15px] font-semibold text-ink"
-          >
-            Recent <ChevronDown size={16} />
-          </button>
+          <div className="flex items-center justify-between py-3">
+            <button
+              type="button"
+              className="flex items-center gap-1 text-[15px] font-semibold text-ink"
+            >
+              Recent <ChevronDown size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="text-[14px] font-semibold text-brand"
+            >
+              From device
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => onFiles(e.target.files)}
+            />
+          </div>
           <div className="grid grid-cols-4 md:grid-cols-5 gap-1">
-            {PICKER_PHOTOS.map((url) => {
+            {gallery.map((url) => {
               const idx = selected.indexOf(url)
               const active = idx >= 0
               return (

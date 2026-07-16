@@ -1,6 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Check, CloudUpload, Copy, Mail, MessageSquare, Plus, Share, Trash2 } from 'lucide-react'
+import { useAuth } from '../auth'
+import {
+  createSupportTicket,
+  listBlockedUsers,
+  unblockUser,
+} from '../data/account'
+import { updateUserProfile } from '../data/users'
+import type { NotificationPrefs, PlanType } from '../data/types'
 import {
   APP_INVITE_URL,
   SHARE_COPY,
@@ -9,6 +17,7 @@ import {
   nativeShare,
   smsHref,
 } from '../share/messages'
+import { planTypeDbToLabel, planTypeLabelToDb } from '../profile/mapProfile'
 import {
   STEALTH_NOTIFS,
   FAQ_ITEMS,
@@ -43,14 +52,28 @@ export function PreferencesScreen() {
 
 export function ThemeScreen() {
   const navigate = useNavigate()
-  const [mode, setMode] = useState<'light' | 'dark'>('light')
+  const { user, profile, refreshProfile } = useAuth()
+  const [mode, setMode] = useState<'light' | 'dark'>(
+    profile?.theme === 'dark' ? 'dark' : 'light',
+  )
+  const [busy, setBusy] = useState(false)
 
   return (
     <SettingsShell
       title="Dark/Light mode"
       backTo="/profile/settings/preferences"
-      saveLabel="Save"
-      onSave={() => navigate('/profile/settings/preferences')}
+      saveLabel={busy ? 'Saving…' : 'Save'}
+      onSave={() => {
+        if (!user) {
+          navigate('/profile/settings/preferences')
+          return
+        }
+        setBusy(true)
+        void updateUserProfile(user.uid, { theme: mode })
+          .then(() => refreshProfile())
+          .then(() => navigate('/profile/settings/preferences'))
+          .finally(() => setBusy(false))
+      }}
     >
       <div className="grid grid-cols-2 gap-3 sm:gap-5 mt-4 max-w-md mx-auto w-full">
         {(
@@ -105,10 +128,14 @@ export function ThemeScreen() {
 
 export function TypeOfPlansScreen() {
   const navigate = useNavigate()
-  const [plans, setPlans] = useState<string[]>(['Friendships', 'Dating', 'Something casual'])
+  const { user, profile, refreshProfile } = useAuth()
+  const [plans, setPlans] = useState<string[]>(() =>
+    (profile?.planTypePrefs || ['friendship', 'dating', 'casual']).map(planTypeDbToLabel),
+  )
   const [friendsWith, setFriendsWith] = useState<string[]>(['Women'])
   const [dateWith, setDateWith] = useState<string[]>(['Non-binary people'])
   const [casualWith, setCasualWith] = useState<string[]>(['Non-binary people'])
+  const [busy, setBusy] = useState(false)
 
   function toggle(list: string[], setList: (v: string[]) => void, item: string) {
     setList(list.includes(item) ? list.filter((x) => x !== item) : [...list, item])
@@ -140,10 +167,24 @@ export function TypeOfPlansScreen() {
       footer={
         <button
           type="button"
-          onClick={() => navigate('/profile/settings/preferences')}
-          className="w-full rounded-full bg-ink py-4 text-[15px] font-semibold text-white"
+          disabled={busy}
+          onClick={() => {
+            if (!user) {
+              navigate('/profile/settings/preferences')
+              return
+            }
+            const prefs = plans
+              .map(planTypeLabelToDb)
+              .filter((x): x is PlanType => !!x)
+            setBusy(true)
+            void updateUserProfile(user.uid, { planTypePrefs: prefs })
+              .then(() => refreshProfile())
+              .then(() => navigate('/profile/settings/preferences'))
+              .finally(() => setBusy(false))
+          }}
+          className="w-full rounded-full bg-ink py-4 text-[15px] font-semibold text-white disabled:opacity-50"
         >
-          Save
+          {busy ? 'Saving…' : 'Save'}
         </button>
       }
     >
@@ -358,16 +399,47 @@ export function ChangePasswordScreen() {
 
 function NotifCategoryScreen({
   title,
+  category,
   items,
 }: {
   title: string
+  category: keyof NotificationPrefs
   items: string[]
 }) {
+  const { user, profile, refreshProfile } = useAuth()
+  const prefs = profile?.notificationPrefs?.[category]
   const [channel, setChannel] = useState('Push')
   const [toggles, setToggles] = useState(() => Object.fromEntries(items.map((i) => [i, true])))
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    // Channel master switches from stored prefs
+    if (prefs) {
+      setChannel(prefs.email && !prefs.push ? 'Email' : 'Push')
+    }
+  }, [prefs])
 
   return (
-    <SettingsShell title={title} backTo="/profile/settings/notifications">
+    <SettingsShell
+      title={title}
+      backTo="/profile/settings/notifications"
+      saveLabel={busy ? 'Saving…' : 'Save'}
+      onSave={() => {
+        if (!user) return
+        const anyOn = Object.values(toggles).some(Boolean)
+        const next: NotificationPrefs = {
+          ...(profile?.notificationPrefs || {}),
+          [category]: {
+            push: channel === 'Push' ? anyOn : !!prefs?.push,
+            email: channel === 'Email' ? anyOn : !!prefs?.email,
+          },
+        }
+        setBusy(true)
+        void updateUserProfile(user.uid, { notificationPrefs: next })
+          .then(() => refreshProfile())
+          .finally(() => setBusy(false))
+      }}
+    >
       <Segmented options={['Push', 'Email']} value={channel} onChange={setChannel} />
       {items.map((label) => (
         <div key={label} className="flex items-start justify-between gap-4 border-b border-gray-100 py-4">
@@ -384,14 +456,36 @@ function NotifCategoryScreen({
 
 export function NotificationsHubScreen() {
   const navigate = useNavigate()
+  const { user, refreshProfile } = useAuth()
   const [all, setAll] = useState(true)
+  const [busy, setBusy] = useState(false)
 
   return (
     <SettingsShell title="Notifications" backTo="/profile">
       <div className="flex items-center justify-between border-b border-gray-100 py-4">
         <p className="text-[15px] text-ink">All notifications</p>
-        <SettingsToggle checked={all} onChange={setAll} />
+        <SettingsToggle
+          checked={all}
+          onChange={(v) => {
+            setAll(v)
+            if (!user) return
+            const flags = { push: v, email: v }
+            setBusy(true)
+            void updateUserProfile(user.uid, {
+              notificationPrefs: {
+                joining: flags,
+                hosting: flags,
+                photos: flags,
+                friends: flags,
+                stealth: flags,
+              },
+            })
+              .then(() => refreshProfile())
+              .finally(() => setBusy(false))
+          }}
+        />
       </div>
+      {busy ? <p className="py-2 text-[12px] text-muted">Saving…</p> : null}
       <SettingsRow
         label="Notifications about plans you're joining"
         onClick={() => navigate('/profile/settings/notifications/joining')}
@@ -417,19 +511,49 @@ export function NotificationsHubScreen() {
 }
 
 export function NotifJoiningScreen() {
-  return <NotifCategoryScreen title="Notifications about joining" items={JOINING_NOTIFS} />
+  return (
+    <NotifCategoryScreen
+      title="Notifications about joining"
+      category="joining"
+      items={JOINING_NOTIFS}
+    />
+  )
 }
 export function NotifHostingScreen() {
-  return <NotifCategoryScreen title="Notifications about hosting" items={HOSTING_NOTIFS} />
+  return (
+    <NotifCategoryScreen
+      title="Notifications about hosting"
+      category="hosting"
+      items={HOSTING_NOTIFS}
+    />
+  )
 }
 export function NotifPhotosScreen() {
-  return <NotifCategoryScreen title="Notifications about photos" items={PHOTO_NOTIFS} />
+  return (
+    <NotifCategoryScreen
+      title="Notifications about photos"
+      category="photos"
+      items={PHOTO_NOTIFS}
+    />
+  )
 }
 export function NotifFriendsScreen() {
-  return <NotifCategoryScreen title="Notifications about friends" items={FRIEND_NOTIFS} />
+  return (
+    <NotifCategoryScreen
+      title="Notifications about friends"
+      category="friends"
+      items={FRIEND_NOTIFS}
+    />
+  )
 }
 export function NotifStealthAppScreen() {
-  return <NotifCategoryScreen title="Notifications from StealthApp" items={STEALTH_NOTIFS} />
+  return (
+    <NotifCategoryScreen
+      title="Notifications from StealthApp"
+      category="stealth"
+      items={STEALTH_NOTIFS}
+    />
+  )
 }
 
 export function InviteScreen() {
@@ -511,7 +635,8 @@ export function InviteScreen() {
 
 export function PrivacyScreen() {
   const navigate = useNavigate()
-  const [privateMode, setPrivateMode] = useState(true)
+  const { user, profile, refreshProfile } = useAuth()
+  const [privateMode, setPrivateMode] = useState(!!profile?.privateMode)
 
   return (
     <SettingsShell title="Privacy" backTo="/profile">
@@ -527,7 +652,16 @@ export function PrivacyScreen() {
         <p className="text-[15px] text-ink">
           Private mode <span className="text-muted text-xs">ⓘ</span>
         </p>
-        <SettingsToggle checked={privateMode} onChange={setPrivateMode} />
+        <SettingsToggle
+          checked={privateMode}
+          onChange={(v) => {
+            setPrivateMode(v)
+            if (!user) return
+            void updateUserProfile(user.uid, { privateMode: v }).then(() =>
+              refreshProfile(),
+            )
+          }}
+        />
       </div>
       <SettingsRow label="Blocked accounts" onClick={() => navigate('/profile/settings/privacy/blocked')} />
       <SettingsRow label="Safe meeting tips" onClick={() => navigate('/profile/settings/privacy/safe-tips')} />
@@ -540,11 +674,51 @@ export function PrivacyScreen() {
 }
 
 export function BlockedAccountsScreen() {
+  const { user } = useAuth()
+  const [rows, setRows] = useState<{ uid: string; name?: string; avatarUrl?: string }[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+    void listBlockedUsers(user.uid)
+      .then(setRows)
+      .finally(() => setLoading(false))
+  }, [user])
+
   return (
     <SettingsShell title="Blocked accounts" backTo="/profile/settings/privacy">
-      <p className="py-20 text-center text-[14px] text-muted">
-        Accounts you block will appear here.
-      </p>
+      {loading ? (
+        <p className="py-20 text-center text-[14px] text-muted">Loading…</p>
+      ) : rows.length === 0 ? (
+        <p className="py-20 text-center text-[14px] text-muted">
+          Accounts you block will appear here.
+        </p>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {rows.map((r) => (
+            <li key={r.uid} className="flex items-center gap-3 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-semibold">{r.name || r.uid.slice(0, 8)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!user) return
+                  void unblockUser(user.uid, r.uid).then(() =>
+                    setRows((list) => list.filter((x) => x.uid !== r.uid)),
+                  )
+                }}
+                className="text-[14px] font-semibold text-brand"
+              >
+                Unblock
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </SettingsShell>
   )
 }
@@ -598,9 +772,11 @@ export function HelpScreen() {
 }
 
 export function ReportProblemScreen() {
+  const { user } = useAuth()
   const [text, setText] = useState('')
   const [photo, setPhoto] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [busy, setBusy] = useState(false)
   const ready = text.trim().length > 0
 
   return (
@@ -610,8 +786,19 @@ export function ReportProblemScreen() {
       footer={
         <button
           type="button"
-          disabled={!ready && !submitted}
-          onClick={() => setSubmitted(true)}
+          disabled={(!ready && !submitted) || busy}
+          onClick={() => {
+            if (!user || submitted) return
+            setBusy(true)
+            void createSupportTicket({
+              userId: user.uid,
+              kind: 'report_problem',
+              body: text.trim(),
+              subject: photo ? 'Report with photo note' : 'Report a problem',
+            })
+              .then(() => setSubmitted(true))
+              .finally(() => setBusy(false))
+          }}
           className={[
             'flex w-full items-center justify-center gap-2 rounded-full py-4 text-[15px] font-semibold',
             submitted
@@ -625,6 +812,8 @@ export function ReportProblemScreen() {
             <>
               <Check size={18} /> Submitted
             </>
+          ) : busy ? (
+            'Submitting…'
           ) : (
             'Submit'
           )}
@@ -746,8 +935,10 @@ export function DownloadDataScreen() {
 }
 
 export function ContactScreen() {
+  const { user } = useAuth()
   const [text, setText] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [busy, setBusy] = useState(false)
   const ready = text.trim().length > 0
 
   return (
@@ -757,8 +948,18 @@ export function ContactScreen() {
       footer={
         <button
           type="button"
-          disabled={!ready && !submitted}
-          onClick={() => setSubmitted(true)}
+          disabled={(!ready && !submitted) || busy}
+          onClick={() => {
+            if (!user || submitted) return
+            setBusy(true)
+            void createSupportTicket({
+              userId: user.uid,
+              kind: 'contact',
+              body: text.trim(),
+            })
+              .then(() => setSubmitted(true))
+              .finally(() => setBusy(false))
+          }}
           className={[
             'flex w-full items-center justify-center gap-2 rounded-full py-4 text-[15px] font-semibold',
             submitted
@@ -772,6 +973,8 @@ export function ContactScreen() {
             <>
               <Check size={18} /> Submitted
             </>
+          ) : busy ? (
+            'Submitting…'
           ) : (
             'Submit'
           )}

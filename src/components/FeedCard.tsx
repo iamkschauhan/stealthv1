@@ -35,14 +35,17 @@ function StatusBadge({ label }: { label: string }) {
 
 function EngagementBar({
   likes,
+  planId,
   onShare,
 }: {
   likes: number
+  planId: string
   onShare?: () => void
 }) {
+  const { watchIds, toggleWatch } = useFeed()
   const [liked, setLiked] = useState(true)
   const [count, setCount] = useState(likes)
-  const [watching, setWatching] = useState(false)
+  const watching = watchIds.has(planId)
 
   return (
     <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
@@ -74,7 +77,7 @@ function EngagementBar({
         ) : null}
         <button
           type="button"
-          onClick={() => setWatching((v) => !v)}
+          onClick={() => void toggleWatch(planId)}
           className={[
             'flex items-center gap-1.5',
             watching ? 'text-brand' : 'text-muted',
@@ -214,7 +217,7 @@ export function ActivityCard({ item }: { item: Extract<FeedItem, { type: 'activi
         {item.status ? <StatusBadge label={item.status} /> : null}
       </button>
       <ActivitySheet item={item} />
-      <EngagementBar likes={item.likes} onShare={() => setShareId(item.id)} />
+      <EngagementBar likes={item.likes} planId={item.id} onShare={() => setShareId(item.id)} />
     </article>
   )
 }
@@ -237,7 +240,7 @@ export function PhotoCard({ item }: { item: Extract<FeedItem, { type: 'photo' }>
         <p className="px-4 pt-3 text-[13px] leading-relaxed text-muted">{item.caption}</p>
       ) : null}
       <div className="relative">
-        <EngagementBar likes={item.likes} onShare={() => setShareId(item.id)} />
+        <EngagementBar likes={item.likes} planId={item.id} onShare={() => setShareId(item.id)} />
         {item.slides ? (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-1.5 pointer-events-none">
             {Array.from({ length: item.slides }).map((_, i) => (

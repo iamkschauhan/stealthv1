@@ -1,13 +1,54 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Photos under users/{uid}/… — owner only until broader rules land.
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*')
+        && request.resource.size < 10 * 1024 * 1024;
+    }
+
+    function isPlanHost(planId) {
+      return signedIn()
+        && firestore.get(/databases/(default)/documents/plans/$(planId)).data.hostId
+          == request.auth.uid;
+    }
+
+    function isChatMember(threadId) {
+      return signedIn()
+        && request.auth.uid in
+          firestore.get(/databases/(default)/documents/threads/$(threadId)).data.memberIds;
+    }
+
     match /users/{userId}/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-        && request.auth.uid == userId
-        && request.resource.size < 10 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+      allow read: if signedIn();
+      allow write: if isOwner(userId) && isImage();
+    }
+
+    match /plans/{planId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if isImage()
+        && (isPlanHost(planId)
+          || request.resource.metadata.hostId == request.auth.uid
+          || request.resource.metadata.uploaderId == request.auth.uid);
+    }
+
+    match /reports/{userId}/{allPaths=**} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isImage();
+    }
+
+    match /chat/{threadId}/{allPaths=**} {
+      allow read: if isChatMember(threadId);
+      allow write: if isImage()
+        && isChatMember(threadId)
+        && request.resource.metadata.senderId == request.auth.uid;
     }
 
     match /{allPaths=**} {

@@ -1,11 +1,10 @@
-import { useNavigate } from 'react-router-dom'
-import { getNextStep } from '../flow'
+import { useOnboarding } from '../OnboardingContext'
 import { ProgressDots } from '../ProgressDots'
 import { OnboardingShell, OnboardingTitle, PrimaryButton } from '../ui'
 
 /** Intermediate upload confirm used by Login "Upload photo" mocks. */
 export function UploadPhotoScreen() {
-  const navigate = useNavigate()
+  const { advance, busy } = useOnboarding()
 
   return (
     <OnboardingShell
@@ -13,11 +12,11 @@ export function UploadPhotoScreen() {
       stepId="upload-photo"
       footer={
         <PrimaryButton
-          enabled
+          enabled={!busy}
           className="!bg-onboard-gold hover:!bg-[#d4922f]"
-          onClick={() => navigate(getNextStep('upload-photo')!.path)}
+          onClick={() => void advance('upload-photo')}
         >
-          Continue
+          {busy ? 'Saving…' : 'Continue'}
         </PrimaryButton>
       }
     >

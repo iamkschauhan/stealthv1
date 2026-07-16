@@ -7,6 +7,14 @@
 
 ---
 
+## Backend status
+
+Firebase project **datingpro-c8638** backs the UI (Auth · Firestore · Storage). Integration sprints **S0–S7** are complete for the v1 happy path: phone OTP → onboarding → create/join plans → My Plans → notifications/chat → profile/settings → logout/delete. See `docs/FIREBASE.md` and `docs/SPRINT_PLAN.md`.
+
+Deferred (not required for v1): couples link-account polish, email delivery, Cloud Functions fanout, full Friends graph.
+
+---
+
 ## 0. App chrome & breakpoints
 
 | Breakpoint | Behavior |

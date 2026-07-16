@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Calendar,
   ChevronDown,
@@ -15,23 +15,35 @@ import {
   Users,
 } from 'lucide-react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import {
-  GOING_PEOPLE,
-  SUGGESTED,
-  findRequestedPlan,
-} from './data'
+import { SUGGESTED } from './data'
+import { usePlans, type GoingPerson } from './PlansContext'
 import { PlansShell, SharePlanModal, Sheet } from './shell'
 
 export function RequestedPlanDetail() {
   const { id = '' } = useParams()
-  const plan = findRequestedPlan(id)
+  const { loading, getCard, leaveOrCancel, loadPeople } = usePlans()
+  const plan = getCard(id)
   const navigate = useNavigate()
   const [seeMore, setSeeMore] = useState(false)
   const [pendingOpen, setPendingOpen] = useState(false)
   const [goingOpen, setGoingOpen] = useState(false)
+  const [people, setPeople] = useState<GoingPerson[]>([])
   const [menuOpen, setMenuOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (goingOpen && id) void loadPeople(id).then(setPeople)
+  }, [goingOpen, id, loadPeople])
+
+  if (loading && !plan) {
+    return (
+      <PlansShell tip="Loading…">
+        <p className="mx-auto max-w-xl py-20 text-center text-muted">Loading plan…</p>
+      </PlansShell>
+    )
+  }
 
   if (!plan) return <Navigate to="/plans?tab=Requested" replace />
 
@@ -239,17 +251,27 @@ export function RequestedPlanDetail() {
 
       <Sheet open={goingOpen} title="Going" onClose={() => setGoingOpen(false)}>
         <ul className="px-4 py-2 pb-6">
-          {GOING_PEOPLE.map((p) => (
-            <li key={p.name} className="flex items-center gap-3 py-3">
-              <img src={p.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
-              <p className="text-[15px] font-semibold">
-                {p.name}
-                {p.role ? (
-                  <span className="font-normal text-muted"> · {p.role}</span>
-                ) : null}
-              </p>
-            </li>
-          ))}
+          {people.length === 0 ? (
+            <li className="py-6 text-center text-[14px] text-muted">No one yet</li>
+          ) : (
+            people.map((p) => (
+              <li key={p.uid} className="flex items-center gap-3 py-3">
+                {p.avatar ? (
+                  <img src={p.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-pill text-[14px] font-bold">
+                    {p.name.slice(0, 1)}
+                  </span>
+                )}
+                <p className="text-[15px] font-semibold">
+                  {p.name}
+                  {p.role ? (
+                    <span className="font-normal text-muted"> · {p.role}</span>
+                  ) : null}
+                </p>
+              </li>
+            ))
+          )}
         </ul>
       </Sheet>
 
@@ -302,8 +324,14 @@ export function RequestedPlanDetail() {
               </button>
               <button
                 type="button"
-                className="py-3.5 text-[15px] font-semibold text-brand"
-                onClick={() => navigate('/plans?tab=Requested')}
+                disabled={busy}
+                className="py-3.5 text-[15px] font-semibold text-brand disabled:opacity-50"
+                onClick={() => {
+                  setBusy(true)
+                  void leaveOrCancel(plan.id)
+                    .then(() => navigate('/plans?tab=Requested'))
+                    .finally(() => setBusy(false))
+                }}
               >
                 Yes
               </button>

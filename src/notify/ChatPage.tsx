@@ -11,36 +11,65 @@ import {
   Smile,
   X,
 } from 'lucide-react'
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
-import { ME, PEOPLE } from './data'
+import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { useAuth } from '../auth'
+import { ME } from './data'
 import { useNotify } from './NotifyContext'
+import { ensureThreadForPlan } from '../data/threads'
 import { PhotoPicker } from './PhotoPicker'
 import { ManageSheet, NotifyShell } from './shell'
 
-function person(id: string) {
-  if (id === 'me') return ME
-  return PEOPLE[id] ?? { name: id, avatar: ME.avatar }
-}
-
 export function ChatPage() {
   const { threadId = '' } = useParams()
-  const { threads, markThreadRead, appendMessage } = useNotify()
+  const { user, profile } = useAuth()
+  const {
+    loading,
+    threads,
+    markThreadRead,
+    loadMessages,
+    sendChat,
+    viewPlanPath,
+    refresh,
+  } = useNotify()
   const navigate = useNavigate()
   const thread = threads.find((t) => t.id === threadId)
 
   const [text, setText] = useState('')
-  const [pendingImages, setPendingImages] = useState<string[]>([])
+  const [pendingImages, setPendingImages] = useState<
+    { url: string; blob?: Blob }[]
+  >([])
   const [pickerOpen, setPickerOpen] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [hitIndex, setHitIndex] = useState(0)
-  const [typing] = useState(true)
+  const [planHref, setPlanHref] = useState('/plans')
+  const [ready, setReady] = useState(false)
+  const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (threadId) markThreadRead(threadId)
-  }, [threadId, markThreadRead])
+    let cancelled = false
+    async function boot() {
+      if (!threadId || !user) return
+      try {
+        await ensureThreadForPlan(threadId)
+        await refresh()
+        await loadMessages(threadId)
+        await markThreadRead(threadId)
+        const href = await viewPlanPath(threadId)
+        if (!cancelled) setPlanHref(href)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        if (!cancelled) setReady(true)
+      }
+    }
+    void boot()
+    return () => {
+      cancelled = true
+    }
+  }, [threadId, user?.uid]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -65,20 +94,41 @@ export function ChatPage() {
     })
   }, [hits, hitIndex])
 
-  if (!thread) return <Navigate to="/messages" replace />
+  if ((loading || !ready) && !thread) {
+    return (
+      <NotifyShell tip="Loading chat…">
+        <p className="mx-auto max-w-xl py-20 text-center text-muted">Loading…</p>
+      </NotifyShell>
+    )
+  }
 
-  function send() {
+  if (ready && !thread) return <Navigate to="/messages" replace />
+
+  const live = thread!
+
+  const myAvatar = profile?.avatarUrl || ME.avatar
+
+  async function send() {
     const trimmed = text.trim()
     if (!trimmed && pendingImages.length === 0) return
-    appendMessage(thread!.id, {
-      id: `local-${Date.now()}`,
-      senderId: 'me',
-      text: trimmed || undefined,
-      time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-      images: pendingImages.length ? pendingImages : undefined,
-    })
-    setText('')
-    setPendingImages([])
+    setSending(true)
+    try {
+      const blobs: Blob[] = []
+      for (const img of pendingImages) {
+        if (img.blob) blobs.push(img.blob)
+        else {
+          const res = await fetch(img.url)
+          blobs.push(await res.blob())
+        }
+      }
+      await sendChat(live.id, trimmed, blobs.length ? blobs : undefined)
+      setText('')
+      setPendingImages([])
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSending(false)
+    }
   }
 
   function highlight(body: string) {
@@ -100,7 +150,7 @@ export function ChatPage() {
   return (
     <NotifyShell
       tip="Search the thread, attach photos, or open View plan from Manage."
-      tipTitle={thread.title}
+      tipTitle={live.title}
     >
       <div className="mx-auto w-full max-w-xl lg:max-w-2xl bg-white md:rounded-2xl md:border md:border-gray-100 md:shadow-sm min-h-[70dvh] md:min-h-[75dvh] max-h-[100dvh] md:max-h-[calc(100dvh-6rem)] overflow-hidden flex flex-col">
         {searchOpen ? (
@@ -142,7 +192,7 @@ export function ChatPage() {
               <ChevronLeft size={24} />
             </button>
             <h1 className="flex-1 text-center text-[17px] font-bold text-ink truncate">
-              {thread.title}
+              {live.title}
             </h1>
             <button
               type="button"
@@ -166,10 +216,9 @@ export function ChatPage() {
         <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 space-y-3">
           <p className="text-center text-[13px] font-semibold text-muted py-2">Today</p>
 
-          {thread.messages.map((m, idx) => {
+          {live.messages.map((m, idx) => {
             const mine = m.senderId === 'me'
-            const who = person(m.senderId)
-            const prev = thread.messages[idx - 1]
+            const prev = live.messages[idx - 1]
             const showAvatar = !prev || prev.senderId !== m.senderId
             const isHit = hits[hitIndex]?.id === m.id
 
@@ -187,7 +236,7 @@ export function ChatPage() {
                   <div className="w-8 shrink-0">
                     {showAvatar ? (
                       <img
-                        src={who.avatar}
+                        src={live.avatar}
                         alt=""
                         className="h-8 w-8 rounded-full object-cover"
                       />
@@ -205,7 +254,7 @@ export function ChatPage() {
                     >
                       {!mine ? (
                         <div className="mb-1 flex items-baseline justify-between gap-3">
-                          <span className="text-[13px] font-bold">{who.name}</span>
+                          <span className="text-[13px] font-bold">Member</span>
                           <span className="text-[11px] text-muted">{m.time}</span>
                         </div>
                       ) : (
@@ -249,7 +298,7 @@ export function ChatPage() {
                   <div className="w-8 shrink-0">
                     {showAvatar ? (
                       <img
-                        src={ME.avatar}
+                        src={myAvatar}
                         alt=""
                         className="h-8 w-8 rounded-full object-cover"
                       />
@@ -260,9 +309,6 @@ export function ChatPage() {
             )
           })}
 
-          {typing && !searchOpen ? (
-            <p className="pl-10 text-[12px] text-muted">Bill is typing…</p>
-          ) : null}
           <div ref={bottomRef} />
         </div>
 
@@ -298,10 +344,10 @@ export function ChatPage() {
           <div className="border-t border-gray-100 bg-white px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             {pendingImages.length ? (
               <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-                {pendingImages.map((src) => (
-                  <div key={src} className="relative h-20 w-20 shrink-0">
+                {pendingImages.map((img) => (
+                  <div key={img.url} className="relative h-20 w-20 shrink-0">
                     <img
-                      src={src}
+                      src={img.url}
                       alt=""
                       className="h-full w-full rounded-xl object-cover"
                     />
@@ -309,7 +355,7 @@ export function ChatPage() {
                       type="button"
                       aria-label="Remove photo"
                       onClick={() =>
-                        setPendingImages((imgs) => imgs.filter((u) => u !== src))
+                        setPendingImages((imgs) => imgs.filter((u) => u.url !== img.url))
                       }
                       className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-brand text-white text-xs"
                     >
@@ -343,7 +389,7 @@ export function ChatPage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
-                    send()
+                    void send()
                   }
                 }}
                 placeholder="Your message"
@@ -352,10 +398,10 @@ export function ChatPage() {
               <button
                 type="button"
                 aria-label="Send"
-                disabled={!text.trim() && !pendingImages.length}
-                onClick={send}
+                disabled={sending || (!text.trim() && !pendingImages.length)}
+                onClick={() => void send()}
                 className={[
-                  'flex h-9 w-9 items-center justify-center rounded-full shrink-0',
+                  'flex h-9 w-9 items-center justify-center rounded-full shrink-0 disabled:opacity-50',
                   text.trim() || pendingImages.length
                     ? 'bg-brand text-white'
                     : 'bg-[#e5e5ea] text-white',
@@ -369,20 +415,23 @@ export function ChatPage() {
       </div>
 
       <ManageSheet open={manageOpen} onClose={() => setManageOpen(false)}>
-        <Link
-          to="/home"
-          onClick={() => setManageOpen(false)}
+        <button
+          type="button"
+          onClick={() => {
+            setManageOpen(false)
+            navigate(planHref)
+          }}
           className="flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-left hover:bg-feed-gap"
         >
           <Calendar size={20} />
           <span className="text-[15px]">View plan</span>
-        </Link>
+        </button>
       </ManageSheet>
 
       <PhotoPicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        onAdd={(urls) => setPendingImages((prev) => [...prev, ...urls])}
+        onAdd={(items) => setPendingImages((prev) => [...prev, ...items])}
       />
     </NotifyShell>
   )

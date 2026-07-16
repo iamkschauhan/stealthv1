@@ -15,12 +15,12 @@ import {
   TAB_TIPS,
   defaultSort,
   planDetailPath,
-  plansForTab,
   sortOptionsForTab,
   type PlanCard,
   type PlansTab,
   type SortOption,
 } from './data'
+import { usePlans } from './PlansContext'
 import { PlansShell, SharePlanModal, Sheet } from './shell'
 
 const TABS: PlansTab[] = ['Watching', 'Requested', 'Upcoming', 'Past']
@@ -60,6 +60,7 @@ function BadgeLabel({ badge }: { badge: string }) {
 }
 
 export function PlansPage() {
+  const { loading, error, listForTab, hidePast, getCard, refresh } = usePlans()
   const [params, setParams] = useSearchParams()
   const tabParam = params.get('tab')
   const tab: PlansTab =
@@ -77,14 +78,13 @@ export function PlansPage() {
   const [shareOpen, setShareOpen] = useState(false)
   const [sharePlanId, setSharePlanId] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [hidden, setHidden] = useState<string[]>([])
+  const [busy, setBusy] = useState(false)
   const navigate = useNavigate()
   const sortOptions = sortOptionsForTab(tab)
 
   const items = useMemo(() => {
-    const base = plansForTab(tab).filter((p) => !hidden.includes(p.id))
-    return sortPlans(base, sort)
-  }, [tab, sort, hidden])
+    return sortPlans(listForTab(tab), sort)
+  }, [tab, sort, listForTab])
 
   function setTab(next: PlansTab) {
     setParams(next === 'Past' ? {} : { tab: next })
@@ -141,7 +141,22 @@ export function PlansPage() {
           </button>
         </div>
 
-        {items.length === 0 ? (
+        {loading ? (
+          <p className="flex-1 flex items-center justify-center px-8 py-20 text-center text-[14px] text-muted">
+            Loading plans…
+          </p>
+        ) : error ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 px-8 py-20">
+            <p className="text-center text-[14px] text-red-500">{error}</p>
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              className="rounded-full bg-brand px-5 py-2.5 text-[13px] font-semibold text-white"
+            >
+              Retry
+            </button>
+          </div>
+        ) : items.length === 0 ? (
           <p className="flex-1 flex items-center justify-center px-8 py-20 text-center text-[14px] text-muted">
             {EMPTY_COPY[tab]}
           </p>
@@ -302,7 +317,7 @@ export function PlansPage() {
           tab === 'Upcoming'
             ? 'going'
             : tab === 'Past'
-              ? plansForTab('Past').find((p) => p.id === sharePlanId)?.hostedByMe
+              ? getCard(sharePlanId || '')?.hostedByMe
                 ? 'hostedPast'
                 : 'went'
               : 'found'
@@ -341,13 +356,18 @@ export function PlansPage() {
               </button>
               <button
                 type="button"
-                className="py-3.5 text-[15px] font-semibold text-red-500"
+                disabled={busy}
+                className="py-3.5 text-[15px] font-semibold text-red-500 disabled:opacity-50"
                 onClick={() => {
-                  if (pendingDeleteId) {
-                    setHidden((h) => [...h, pendingDeleteId])
-                  }
-                  setPendingDeleteId(null)
-                  setDeleteOpen(false)
+                  const id = pendingDeleteId
+                  if (!id) return
+                  setBusy(true)
+                  void hidePast(id)
+                    .then(() => {
+                      setPendingDeleteId(null)
+                      setDeleteOpen(false)
+                    })
+                    .finally(() => setBusy(false))
                 }}
               >
                 Delete

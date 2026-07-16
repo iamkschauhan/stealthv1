@@ -124,7 +124,7 @@ export function ManageOverlays({
   const navigate = useNavigate()
   const {
     draft,
-    resetDraft,
+    deleteLivePlan,
     going,
     invited,
     removeGoing,
@@ -133,6 +133,8 @@ export function ManageOverlays({
     addReservedSlots,
     manageTarget,
     setManageTarget,
+    livePlan,
+    postedPlanId,
   } = useCreate()
 
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -150,6 +152,10 @@ export function ManageOverlays({
     0,
     (Number(draft.spots) || 4) - Math.max(0, going.filter((p) => p.role !== 'Host').length),
   )
+  const inviteUrl =
+    livePlan?.inviteToken && postedPlanId
+      ? `https://stealthapp.app/g/${postedPlanId}/${livePlan.inviteToken}`
+      : INVITE_LINK
 
   function openInvite() {
     setManageOpen(false)
@@ -166,7 +172,7 @@ export function ManageOverlays({
 
   async function copyLink() {
     try {
-      await copyShare('inviteReserved', INVITE_LINK)
+      await copyShare('inviteReserved', inviteUrl)
     } catch {
       /* ignore */
     }
@@ -275,7 +281,7 @@ export function ManageOverlays({
         confirmLabel="Remove"
         onCancel={() => setRemoveConfirm(false)}
         onConfirm={() => {
-          if (manageTarget?.kind === 'going') removeGoing(manageTarget.person.name)
+          if (manageTarget?.kind === 'going') void removeGoing(manageTarget.person)
           setRemoveConfirm(false)
         }}
       />
@@ -288,7 +294,7 @@ export function ManageOverlays({
         confirmLabel="Delete"
         onCancel={() => setDeleteInviteConfirm(false)}
         onConfirm={() => {
-          if (manageTarget?.kind === 'invited') removeInvited(manageTarget.person.name)
+          if (manageTarget?.kind === 'invited') void removeInvited(manageTarget.person)
           setDeleteInviteConfirm(false)
         }}
       />
@@ -320,8 +326,7 @@ export function ManageOverlays({
                 className="py-3.5 text-[15px] font-semibold text-red-500"
                 onClick={() => {
                   setDeletePlanOpen(false)
-                  resetDraft()
-                  navigate('/home')
+                  void deleteLivePlan().then(() => navigate('/home'))
                 }}
               >
                 Delete
@@ -336,7 +341,7 @@ export function ManageOverlays({
           open
           onClose={() => setShareOpen(false)}
           kind="hosting"
-          url={INVITE_LINK}
+          url={inviteUrl}
         />
       ) : null}
 
@@ -515,7 +520,7 @@ export function ManageOverlays({
               <div className="flex items-start gap-2">
                 <Link2 size={18} className="text-brand mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-[14px] font-bold break-all">{INVITE_LINK}</p>
+                  <p className="text-[14px] font-bold break-all">{inviteUrl}</p>
                   <p className="mt-1 text-[12px] text-muted leading-snug">
                     Anyone with this link can see your plan and join a reserved spot.
                   </p>
@@ -526,7 +531,7 @@ export function ManageOverlays({
             <button
               type="button"
               onClick={() => {
-                window.location.href = smsHref('inviteReserved', INVITE_LINK)
+                window.location.href = smsHref('inviteReserved', inviteUrl)
               }}
               className="flex w-full items-center gap-3 rounded-xl px-2 py-3 hover:bg-feed-gap"
             >
@@ -534,7 +539,7 @@ export function ManageOverlays({
               <span className="text-[15px]">Share via text</span>
             </button>
             <p className="px-2 text-[12px] text-muted leading-snug">
-              {sharePayload('inviteReserved', INVITE_LINK)}
+              {sharePayload('inviteReserved', inviteUrl)}
             </p>
             {copied ? (
               <div className="flex items-center justify-center gap-2 rounded-xl bg-[#34c759] py-3.5 text-white font-semibold">

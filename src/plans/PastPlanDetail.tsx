@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Calendar,
   Clock,
@@ -13,23 +13,35 @@ import {
   Users,
 } from 'lucide-react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
-import {
-  PAST_PARTICIPANTS,
-  SUGGESTED,
-  findPastPlan,
-} from './data'
+import { SUGGESTED } from './data'
+import { usePlans, type GoingPerson } from './PlansContext'
 import { PlansShell, SharePlanModal, Sheet } from './shell'
 
 export function PastPlanDetail() {
   const { id = '' } = useParams()
-  const plan = findPastPlan(id)
+  const { loading, getCard, hidePast, loadPeople } = usePlans()
+  const plan = getCard(id)
   const navigate = useNavigate()
   const [seeMore, setSeeMore] = useState(false)
   const [participantsOpen, setParticipantsOpen] = useState(false)
+  const [people, setPeople] = useState<GoingPerson[]>([])
   const [menuOpen, setMenuOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [friends, setFriends] = useState<string[]>([])
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (participantsOpen && id) void loadPeople(id).then(setPeople)
+  }, [participantsOpen, id, loadPeople])
+
+  if (loading && !plan) {
+    return (
+      <PlansShell tip="Loading…">
+        <p className="mx-auto max-w-xl py-20 text-center text-muted">Loading plan…</p>
+      </PlansShell>
+    )
+  }
 
   if (!plan) return <Navigate to="/plans" replace />
 
@@ -139,12 +151,12 @@ export function PastPlanDetail() {
               </p>
             </section>
 
-            <Link
-              to="/messages/golf"
-              className="flex w-full items-center justify-center rounded-full bg-ink py-3.5 text-[15px] font-semibold text-white"
-            >
-              Chat
-            </Link>
+              <Link
+                to={`/messages/${plan.id}`}
+                className="flex w-full items-center justify-center rounded-full bg-ink py-3.5 text-[15px] font-semibold text-white"
+              >
+                Chat
+              </Link>
 
             <section className="pb-6">
               <div className="mb-3 flex items-center justify-between">
@@ -213,32 +225,42 @@ export function PastPlanDetail() {
         onClose={() => setParticipantsOpen(false)}
       >
         <ul className="px-4 py-2 pb-6">
-          {PAST_PARTICIPANTS.map((p) => (
-            <li key={p.name} className="flex items-center gap-3 py-3">
-              <img src={p.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
-              <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-semibold">
-                  {p.name}
-                  {p.role ? (
-                    <span className="font-normal text-muted"> · {p.role}</span>
-                  ) : null}
-                </p>
-              </div>
-              {p.role === 'You' ? null : (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setFriends((f) =>
-                      f.includes(p.name) ? f.filter((n) => n !== p.name) : [...f, p.name],
-                    )
-                  }
-                  className="text-[14px] font-semibold text-brand"
-                >
-                  {friends.includes(p.name) ? 'Cancel request' : 'Add friend'}
-                </button>
-              )}
-            </li>
-          ))}
+          {people.length === 0 ? (
+            <li className="py-6 text-center text-[14px] text-muted">No participants</li>
+          ) : (
+            people.map((p) => (
+              <li key={p.uid} className="flex items-center gap-3 py-3">
+                {p.avatar ? (
+                  <img src={p.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-pill text-[14px] font-bold">
+                    {p.name.slice(0, 1)}
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-[15px] font-semibold">
+                    {p.name}
+                    {p.role ? (
+                      <span className="font-normal text-muted"> · {p.role}</span>
+                    ) : null}
+                  </p>
+                </div>
+                {p.role === 'Host' ? null : (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFriends((f) =>
+                        f.includes(p.uid) ? f.filter((n) => n !== p.uid) : [...f, p.uid],
+                      )
+                    }
+                    className="text-[14px] font-semibold text-brand"
+                  >
+                    {friends.includes(p.uid) ? 'Cancel request' : 'Add friend'}
+                  </button>
+                )}
+              </li>
+            ))
+          )}
         </ul>
       </Sheet>
 
@@ -313,8 +335,14 @@ export function PastPlanDetail() {
               </button>
               <button
                 type="button"
-                className="py-3.5 text-[15px] font-semibold text-red-500"
-                onClick={() => navigate('/plans')}
+                disabled={busy}
+                className="py-3.5 text-[15px] font-semibold text-red-500 disabled:opacity-50"
+                onClick={() => {
+                  setBusy(true)
+                  void hidePast(plan.id)
+                    .then(() => navigate('/plans'))
+                    .finally(() => setBusy(false))
+                }}
               >
                 Delete
               </button>

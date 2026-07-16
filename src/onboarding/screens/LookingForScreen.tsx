@@ -1,14 +1,11 @@
-import { useNavigate } from 'react-router-dom'
 import { useOnboarding } from '../OnboardingContext'
-import { getNextStep } from '../flow'
 import { OnboardingShell, OnboardingTitle, PrimaryButton } from '../ui'
 
 const OPTIONS = ['Friendships', 'Dating', 'Something casual'] as const
 
 export function LookingForScreen() {
-  const navigate = useNavigate()
-  const { data, patch } = useOnboarding()
-  const ready = data.lookingFor.length >= 1
+  const { data, patch, advance, busy } = useOnboarding()
+  const ready = data.lookingFor.length >= 1 && !busy
 
   function toggle(opt: string) {
     const cur = data.lookingFor
@@ -23,9 +20,9 @@ export function LookingForScreen() {
       footer={
         <PrimaryButton
           enabled={ready}
-          onClick={() => ready && navigate(getNextStep('looking-for')!.path)}
+          onClick={() => ready && void advance('looking-for')}
         >
-          Next
+          {busy ? 'Saving…' : 'Next'}
         </PrimaryButton>
       }
     >

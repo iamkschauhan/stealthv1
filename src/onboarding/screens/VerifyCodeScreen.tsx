@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Pencil, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useOnboarding } from '../OnboardingContext'
-import { getNextStep, getPrevStep } from '../flow'
+import { usePhoneAuthActions } from '../usePhoneAuthActions'
+import { getPrevStep } from '../flow'
 import {
   OnboardingShell,
   StealthAppLogo,
@@ -13,7 +14,8 @@ import {
 
 export function VerifyCodeScreen() {
   const navigate = useNavigate()
-  const { data } = useOnboarding()
+  const { data, error, busy } = useOnboarding()
+  const { verifyCode, resend } = usePhoneAuthActions()
   const [code, setCode] = useState(['', '', '', '', '', ''])
   const [seconds, setSeconds] = useState(59)
   const refs = useRef<(HTMLInputElement | null)[]>([])
@@ -25,7 +27,7 @@ export function VerifyCodeScreen() {
   }, [seconds])
 
   const value = code.join('')
-  const ready = value.length === 6
+  const ready = value.length === 6 && !busy
 
   function setDigit(i: number, char: string) {
     const d = char.replace(/\D/g, '').slice(-1)
@@ -41,9 +43,10 @@ export function VerifyCodeScreen() {
     }
   }
 
-  const phoneDisplay = data.phone
-    ? `+1 (${data.phone.replace(/\D/g, '').slice(0, 3)}) ${data.phone.replace(/\D/g, '').slice(3, 6)}-${data.phone.replace(/\D/g, '').slice(6, 10)}`
-    : '+1 (805) 675-9890'
+  const digits = data.phone.replace(/\D/g, '')
+  const phoneDisplay = digits
+    ? `+1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`
+    : ''
 
   return (
     <OnboardingShell
@@ -52,9 +55,9 @@ export function VerifyCodeScreen() {
       footer={
         <PrimaryButton
           enabled={ready}
-          onClick={() => ready && navigate(getNextStep('verify-code')!.path)}
+          onClick={() => ready && void verifyCode(value)}
         >
-          Verify code
+          {busy ? 'Verifying…' : 'Verify code'}
         </PrimaryButton>
       }
     >
@@ -63,7 +66,7 @@ export function VerifyCodeScreen() {
         <OnboardingTitle
           subtitle={
             <>
-              Sent to {phoneDisplay}
+              Sent to {phoneDisplay || 'your phone'}
               <br />
               Expires in <span className="font-bold text-ink">{seconds}</span> seconds
             </>
@@ -82,7 +85,7 @@ export function VerifyCodeScreen() {
         </GoldLink>
       </div>
 
-      <div className="flex justify-between gap-2 mb-8">
+      <div className="flex justify-between gap-2 mb-4">
         {code.map((digit, i) => (
           <input
             key={i}
@@ -99,14 +102,30 @@ export function VerifyCodeScreen() {
         ))}
       </div>
 
+      {error ? (
+        <p className="mb-4 text-center text-[13px] text-red-500">{error}</p>
+      ) : null}
+
       <div className="flex justify-center">
-        <GoldLink
-          icon={<RefreshCw size={14} />}
-          onClick={() => setSeconds(59)}
-        >
-          Didn&apos;t get a code?
-        </GoldLink>
+        {seconds > 0 ? (
+          <p className="text-[13px] text-muted">
+            Resend available in <span className="font-semibold text-ink">{seconds}</span>s
+          </p>
+        ) : (
+          <GoldLink
+            icon={<RefreshCw size={14} />}
+            onClick={() => {
+              if (busy) return
+              setSeconds(59)
+              void resend()
+            }}
+          >
+            Didn&apos;t get a code?
+          </GoldLink>
+        )}
       </div>
+
+      <div id="recaptcha-container" />
     </OnboardingShell>
   )
 }

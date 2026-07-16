@@ -1,10 +1,177 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Locked down until Auth + data model are wired.
-    // Authenticated users can read/write only their own user doc.
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function planDoc(planId) {
+      return get(/databases/$(database)/documents/plans/$(planId)).data;
+    }
+
+    function isPlanHost(planId) {
+      return signedIn() && planDoc(planId).hostId == request.auth.uid;
+    }
+
+    function threadDoc(threadId) {
+      return get(/databases/$(database)/documents/threads/$(threadId)).data;
+    }
+
+    function isThreadMember(threadId) {
+      return signedIn() && request.auth.uid in threadDoc(threadId).memberIds;
+    }
+
+    // —— Users ——
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if signedIn();
+      allow create: if isSelf(userId);
+      allow update, delete: if isSelf(userId);
+
+      match /photos/{photoId} {
+        allow read: if signedIn();
+        allow write: if isSelf(userId);
+      }
+    }
+
+    // —— Plans ——
+    match /plans/{planId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.hostId == request.auth.uid;
+      // Host: full update. Guests: spotsTaken (+ updatedAt) only — not status.
+      allow update: if isPlanHost(planId)
+        || (signedIn()
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['spotsTaken', 'updatedAt']));
+      allow delete: if isPlanHost(planId);
+
+      match /members/{memberId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && (request.auth.uid == memberId || isPlanHost(planId));
+        // Host: any. Self: same role, or invite/wait → going/waiting/requested
+        allow update: if isPlanHost(planId)
+          || (signedIn()
+            && request.auth.uid == memberId
+            && (
+              request.resource.data.role == resource.data.role
+              || (resource.data.role in ['invited', 'waiting', 'requested']
+                && request.resource.data.role in ['going', 'waiting', 'requested'])
+            ));
+        allow delete: if isPlanHost(planId)
+          || (signedIn() && request.auth.uid == memberId);
+      }
+
+      match /ratings/{ratingUid} {
+        allow read: if signedIn();
+        allow write: if isSelf(ratingUid);
+      }
+    }
+
+    // —— Watching index ——
+    match /watches/{watchId} {
+      allow read: if signedIn()
+        && resource.data.userId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if signedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // —— Reports ——
+    match /reports/{reportId} {
+      allow read: if signedIn() && resource.data.reporterId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.keys().hasAll(['reporterId', 'targetType', 'targetId', 'createdAt']);
+      allow update, delete: if false;
+    }
+
+    // —— Edit requests ——
+    match /editRequests/{requestId} {
+      allow read: if signedIn()
+        && (resource.data.requesterId == request.auth.uid
+          || resource.data.hostId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.requesterId == request.auth.uid;
+      allow update: if signedIn()
+        && (resource.data.hostId == request.auth.uid
+          || resource.data.requesterId == request.auth.uid);
+      allow delete: if signedIn()
+        && resource.data.requesterId == request.auth.uid;
+    }
+
+    // —— Notifications ——
+    match /notifications/{notifId} {
+      allow read, update: if signedIn()
+        && resource.data.userId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasAll(['userId', 'type', 'createdAt', 'read']);
+      allow delete: if signedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // —— Chat ——
+    match /threads/{threadId} {
+      allow read: if signedIn()
+        && request.auth.uid in resource.data.memberIds;
+      allow create: if signedIn()
+        && request.auth.uid in request.resource.data.memberIds;
+      // Members may bump message metadata / unread / hide — not rewrite membership freely
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.memberIds
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly([
+              'lastMessage',
+              'lastSenderId',
+              'updatedAt',
+              'unreadBy',
+              'hiddenFor',
+              'memberIds',
+              'title',
+              'avatarUrl'
+            ]);
+
+      match /messages/{messageId} {
+        allow read: if isThreadMember(threadId);
+        allow create: if signedIn()
+          && request.resource.data.senderId == request.auth.uid
+          && isThreadMember(threadId);
+        allow update, delete: if signedIn()
+          && resource.data.senderId == request.auth.uid;
+      }
+    }
+
+    // —— Blocks ——
+    match /blocks/{userId} {
+      allow read, write: if isSelf(userId);
+
+      match /blocked/{otherUid} {
+        allow read, write: if isSelf(userId);
+      }
+    }
+
+    // —— Feed hidden ——
+    match /feedHidden/{userId} {
+      allow read, write: if isSelf(userId);
+
+      match /plans/{planId} {
+        allow read, write: if isSelf(userId);
+      }
+    }
+
+    // —— Support ——
+    match /supportTickets/{ticketId} {
+      allow read: if signedIn()
+        && resource.data.userId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['userId', 'kind', 'body', 'createdAt']);
+      allow update, delete: if false;
     }
 
     match /{document=**} {

@@ -1,14 +1,11 @@
 import { Navigation } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import { useOnboarding } from '../OnboardingContext'
-import { getNextStep } from '../flow'
 import { ProgressDots } from '../ProgressDots'
 import { OnboardingShell, OnboardingTitle, PrimaryButton } from '../ui'
 
 export function LocationScreen() {
-  const navigate = useNavigate()
-  const { data, patch } = useOnboarding()
-  const ready = !!data.location
+  const { data, patch, advance, busy } = useOnboarding()
+  const ready = !!data.location && !busy
 
   return (
     <OnboardingShell
@@ -26,9 +23,9 @@ export function LocationScreen() {
           </button>
           <PrimaryButton
             enabled={ready}
-            onClick={() => ready && navigate(getNextStep('location')!.path)}
+            onClick={() => ready && void advance('location')}
           >
-            Continue
+            {busy ? 'Saving…' : 'Continue'}
           </PrimaryButton>
         </div>
       }

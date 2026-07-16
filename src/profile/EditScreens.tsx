@@ -1,5 +1,7 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth'
+import { createSupportTicket } from '../data/account'
 import { useProfile } from './ProfileContext'
 import { SettingsShell } from '../settings/ui'
 
@@ -8,11 +10,13 @@ function EditShell({
   children,
   onSave,
   canSave,
+  busy,
 }: {
   title: string
   children: ReactNode
   onSave: () => void
   canSave: boolean
+  busy?: boolean
 }) {
   return (
     <SettingsShell
@@ -21,14 +25,14 @@ function EditShell({
       footer={
         <button
           type="button"
-          disabled={!canSave}
+          disabled={!canSave || busy}
           onClick={onSave}
           className={[
-            'w-full rounded-full py-4 text-[15px] font-semibold',
+            'w-full rounded-full py-4 text-[15px] font-semibold disabled:opacity-50',
             canSave ? 'bg-ink text-white' : 'bg-onboard-disabled text-[#c7c7cc]',
           ].join(' ')}
         >
-          Save
+          {busy ? 'Saving…' : 'Save'}
         </button>
       }
     >
@@ -38,17 +42,21 @@ function EditShell({
 }
 
 export function EditHometownScreen() {
-  const { user, patch } = useProfile()
+  const { user, saveProfile } = useProfile()
   const navigate = useNavigate()
   const [city, setCity] = useState(user.hometown)
+  const [busy, setBusy] = useState(false)
 
   return (
     <EditShell
       title="Hometown"
       canSave={city.trim().length > 0}
+      busy={busy}
       onSave={() => {
-        patch({ hometown: city.trim() })
-        navigate('/profile')
+        setBusy(true)
+        void saveProfile({ hometown: city.trim() })
+          .then(() => navigate('/profile'))
+          .finally(() => setBusy(false))
       }}
     >
       <label className="mb-2 block text-[13px] text-muted">City</label>
@@ -63,18 +71,22 @@ export function EditHometownScreen() {
 }
 
 export function EditCompanyScreen() {
-  const { user, patch } = useProfile()
+  const { user, saveProfile } = useProfile()
   const navigate = useNavigate()
   const [company, setCompany] = useState(user.company)
   const [job, setJob] = useState(user.job)
+  const [busy, setBusy] = useState(false)
 
   return (
     <EditShell
       title="Work"
       canSave={company.trim().length > 0}
+      busy={busy}
       onSave={() => {
-        patch({ company: company.trim(), job: job.trim() })
-        navigate('/profile')
+        setBusy(true)
+        void saveProfile({ company: company.trim(), job: job.trim() })
+          .then(() => navigate('/profile'))
+          .finally(() => setBusy(false))
       }}
     >
       <label className="mb-2 block text-[13px] text-muted">Company name</label>
@@ -96,7 +108,7 @@ export function EditCompanyScreen() {
 }
 
 export function EditEthnicityScreen() {
-  const { user, patch } = useProfile()
+  const { user, saveProfile } = useProfile()
   const navigate = useNavigate()
   const options = [
     'East Asian',
@@ -109,14 +121,18 @@ export function EditEthnicityScreen() {
     'Prefer not to say',
   ]
   const [value, setValue] = useState(user.ethnicity)
+  const [busy, setBusy] = useState(false)
 
   return (
     <EditShell
       title="Ethnicity"
       canSave={!!value}
+      busy={busy}
       onSave={() => {
-        patch({ ethnicity: value })
-        navigate('/profile')
+        setBusy(true)
+        void saveProfile({ ethnicity: value })
+          .then(() => navigate('/profile'))
+          .finally(() => setBusy(false))
       }}
     >
       <div className="flex flex-col gap-2">
@@ -139,57 +155,92 @@ export function EditEthnicityScreen() {
 }
 
 export function ChangePhotoScreen() {
-  const { user, patch } = useProfile()
+  const { user, uploadAvatar } = useProfile()
   const navigate = useNavigate()
-  const demos = [
-    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&h=300&fit=crop&crop=face',
-    'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=300&fit=crop&crop=face',
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&h=300&fit=crop&crop=face',
-  ]
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [preview, setPreview] = useState(user.avatar)
+  const [pending, setPending] = useState<Blob | null>(null)
+  const [busy, setBusy] = useState(false)
 
   return (
     <EditShell
       title="Change photo"
-      canSave
-      onSave={() => navigate('/profile')}
+      canSave={!!pending}
+      busy={busy}
+      onSave={() => {
+        if (!pending) {
+          navigate('/profile')
+          return
+        }
+        setBusy(true)
+        void uploadAvatar(pending)
+          .then(() => navigate('/profile'))
+          .finally(() => setBusy(false))
+      }}
     >
       <div className="mb-6 flex justify-center">
         <img
-          src={user.avatar}
+          src={preview}
           alt=""
           className="h-40 w-40 rounded-full object-cover border-2 border-avatar-ring"
         />
       </div>
-      <div className="grid grid-cols-3 gap-3">
-        {demos.map((src) => (
-          <button
-            key={src}
-            type="button"
-            onClick={() => patch({ avatar: src })}
-            className={[
-              'aspect-square overflow-hidden rounded-2xl border-2',
-              user.avatar === src ? 'border-brand' : 'border-transparent',
-            ].join(' ')}
-          >
-            <img src={src} alt="" className="h-full w-full object-cover" />
-          </button>
-        ))}
-      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (!file) return
+          setPending(file)
+          setPreview(URL.createObjectURL(file))
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        className="w-full rounded-full bg-brand py-3.5 text-[15px] font-semibold text-white"
+      >
+        Choose from device
+      </button>
     </EditShell>
   )
 }
 
 export function VerifyIdentityScreen() {
-  const { patch } = useProfile()
+  const { saveProfile, uploadVerifyPhoto } = useProfile()
   const navigate = useNavigate()
+  const idRef = useRef<HTMLInputElement>(null)
+  const selfieRef = useRef<HTMLInputElement>(null)
+  const [idUrl, setIdUrl] = useState<string | null>(null)
+  const [selfieUrl, setSelfieUrl] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function onPick(kind: 'id' | 'selfie', file: File | undefined) {
+    if (!file) return
+    setBusy(true)
+    try {
+      const url = await uploadVerifyPhoto(kind, file)
+      if (kind === 'id') setIdUrl(url)
+      else setSelfieUrl(url)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <EditShell
       title="Verify identity"
-      canSave
+      canSave={!!idUrl && !!selfieUrl}
+      busy={busy}
       onSave={() => {
-        patch({ identityVerified: true, verified: true })
-        navigate('/profile')
+        setBusy(true)
+        void saveProfile({ identityVerified: true, verified: true })
+          .then(() => navigate('/profile'))
+          .finally(() => setBusy(false))
       }}
     >
       <p className="mb-6 text-center text-[14px] text-muted leading-relaxed">
@@ -197,18 +248,37 @@ export function VerifyIdentityScreen() {
         compare them to confirm that you&apos;re you. Your photo will never be
         shared on your profile.
       </p>
+      <input
+        ref={idRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => void onPick('id', e.target.files?.[0])}
+      />
+      <input
+        ref={selfieRef}
+        type="file"
+        accept="image/*"
+        capture="user"
+        className="hidden"
+        onChange={(e) => void onPick('selfie', e.target.files?.[0])}
+      />
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
-          className="rounded-3xl bg-pill py-10 text-[14px] font-bold text-brand"
+          disabled={busy}
+          onClick={() => idRef.current?.click()}
+          className="rounded-3xl bg-pill py-10 text-[14px] font-bold text-brand disabled:opacity-50"
         >
-          Upload photo
+          {idUrl ? 'Photo uploaded ✓' : 'Upload photo'}
         </button>
         <button
           type="button"
-          className="rounded-3xl bg-pill py-10 text-[14px] font-bold text-brand"
+          disabled={busy}
+          onClick={() => selfieRef.current?.click()}
+          className="rounded-3xl bg-pill py-10 text-[14px] font-bold text-brand disabled:opacity-50"
         >
-          Take selfie
+          {selfieUrl ? 'Selfie uploaded ✓' : 'Take selfie'}
         </button>
       </div>
     </EditShell>
@@ -216,8 +286,10 @@ export function VerifyIdentityScreen() {
 }
 
 export function ReportAccountScreen() {
+  const { user: authUser } = useAuth()
   const navigate = useNavigate()
   const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
   const reasons = [
     'Spam',
     'Harassment',
@@ -230,7 +302,22 @@ export function ReportAccountScreen() {
     <EditShell
       title="Report account"
       canSave={!!reason}
-      onSave={() => navigate('/profile')}
+      busy={busy}
+      onSave={() => {
+        if (!authUser) {
+          navigate('/profile')
+          return
+        }
+        setBusy(true)
+        void createSupportTicket({
+          userId: authUser.uid,
+          kind: 'report_problem',
+          subject: 'Report account',
+          body: reason,
+        })
+          .then(() => navigate('/profile'))
+          .finally(() => setBusy(false))
+      }}
     >
       <p className="mb-4 text-[14px] text-muted">
         Why are you reporting this account?

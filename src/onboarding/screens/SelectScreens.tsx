@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { getNextStep, type OnboardingStepId } from '../flow'
+import type { OnboardingStepId } from '../flow'
+import { useOnboarding } from '../OnboardingContext'
 import { ProgressDots } from '../ProgressDots'
 import {
   GoldLink,
@@ -31,15 +31,9 @@ export function SingleSelectScreen({
   cta?: string
   allowSkip?: boolean
 }) {
-  const navigate = useNavigate()
+  const { advance, busy } = useOnboarding()
   const [show, setShow] = useState(true)
-  const next = getNextStep(stepId)
-  const ready = !!value
-
-  function goNext() {
-    if (next) navigate(next.path)
-    else navigate('/home')
-  }
+  const ready = !!value && !busy
 
   return (
     <OnboardingShell
@@ -56,13 +50,13 @@ export function SingleSelectScreen({
           <PrimaryButton
             enabled={ready}
             className="mt-3"
-            onClick={() => ready && goNext()}
+            onClick={() => ready && void advance(stepId)}
           >
-            {cta}
+            {busy ? 'Saving…' : cta}
           </PrimaryButton>
           {allowSkip ? (
             <div className="mt-3 flex justify-center">
-              <GoldLink onClick={goNext}>Skip →</GoldLink>
+              <GoldLink onClick={() => void advance(stepId)}>Skip →</GoldLink>
             </div>
           ) : null}
         </>
@@ -117,19 +111,13 @@ export function MultiChipScreen({
   activeDot: number
   allowSkip?: boolean
 }) {
-  const navigate = useNavigate()
+  const { advance, busy } = useOnboarding()
   const [show, setShow] = useState(true)
-  const next = getNextStep(stepId)
-  const ready = values.length >= 1
+  const ready = values.length >= 1 && !busy
 
   function toggle(item: string) {
     if (values.includes(item)) onChange(values.filter((x) => x !== item))
     else if (values.length < max) onChange([...values, item])
-  }
-
-  function goNext() {
-    if (next) navigate(next.path)
-    else navigate('/home')
   }
 
   const sections =
@@ -151,13 +139,13 @@ export function MultiChipScreen({
           <PrimaryButton
             enabled={ready}
             className="mt-3"
-            onClick={() => ready && goNext()}
+            onClick={() => ready && void advance(stepId)}
           >
-            Continue
+            {busy ? 'Saving…' : 'Continue'}
           </PrimaryButton>
           {allowSkip ? (
             <div className="mt-3 flex justify-center">
-              <GoldLink onClick={goNext}>Skip →</GoldLink>
+              <GoldLink onClick={() => void advance(stepId)}>Skip →</GoldLink>
             </div>
           ) : null}
         </>

@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { MessageSquareWarning } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import { useOnboarding } from '../OnboardingContext'
-import { getNextStep } from '../flow'
 import {
   GoldLink,
   OnboardingShell,
@@ -61,13 +59,12 @@ function Chip({
 }
 
 export function PronounsScreen() {
-  const navigate = useNavigate()
-  const { data, patch } = useOnboarding()
+  const { data, patch, advance, busy } = useOnboarding()
   const [sexuality, setSexuality] = useState('')
   const [showSex, setShowSex] = useState(true)
   const [showPronouns, setShowPronouns] = useState(true)
 
-  const ready = sexuality.length > 0 && data.pronouns.length > 0
+  const ready = sexuality.length > 0 && data.pronouns.length > 0 && !busy
 
   function togglePronoun(p: string) {
     const cur = data.pronouns
@@ -86,9 +83,9 @@ export function PronounsScreen() {
       footer={
         <PrimaryButton
           enabled={ready}
-          onClick={() => ready && navigate(getNextStep('pronouns')!.path)}
+          onClick={() => ready && void advance('pronouns')}
         >
-          Continue
+          {busy ? 'Saving…' : 'Continue'}
         </PrimaryButton>
       }
     >

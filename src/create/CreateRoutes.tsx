@@ -13,6 +13,7 @@ export function CreateRoutes() {
         <Route path="edit" element={<CreatePlanForm mode="edit" />} />
         <Route path="posting" element={<PostingScreen />} />
         <Route path="plan" element={<HostPlanScreen />} />
+        <Route path="plan/:planId" element={<HostPlanScreen />} />
         <Route path="requests" element={<RequestsScreen />} />
         <Route path="*" element={<Navigate to="/create" replace />} />
       </Routes>

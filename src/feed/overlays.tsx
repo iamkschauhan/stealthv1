@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
   Calendar,
   Check,
@@ -73,6 +73,7 @@ export function JoinConfirmModal() {
   const item = items.find((i) => i.id === joinConfirmId)
   const full =
     item?.type === 'activity' ? parseSpots(item.spots).full : false
+  const [busy, setBusy] = useState(false)
 
   return (
     <ConfirmModal
@@ -87,11 +88,17 @@ export function JoinConfirmModal() {
           ? "You'll move in automatically if a spot opens before the plan closes."
           : "You can always leave before the plan's closing time."
       }
-      confirmLabel={full ? 'Join waiting pool' : 'Join'}
-      onCancel={() => setJoinConfirmId(null)}
+      confirmLabel={busy ? 'Joining…' : full ? 'Join waiting pool' : 'Join'}
+      onCancel={() => !busy && setJoinConfirmId(null)}
       onConfirm={() => {
-        if (joinConfirmId) confirmJoin(joinConfirmId)
-        setJoinConfirmId(null)
+        if (!joinConfirmId || busy) return
+        setBusy(true)
+        void confirmJoin(joinConfirmId)
+          .catch((err) => console.error(err))
+          .finally(() => {
+            setBusy(false)
+            setJoinConfirmId(null)
+          })
       }}
     />
   )
@@ -100,14 +107,10 @@ export function JoinConfirmModal() {
 const EDIT_OPTIONS = ['Start time', 'Location', 'Available spots'] as const
 
 export function RequestEditModal() {
-  const {
-    editRequestId,
-    setEditRequestId,
-    setRequestSentOpen,
-    setJoinState,
-  } = useFeed()
+  const { editRequestId, setEditRequestId, requestEdit } = useFeed()
   const [value, setValue] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   if (!editRequestId) return null
 
@@ -117,8 +120,9 @@ export function RequestEditModal() {
         open={!pickerOpen}
         title="Request to edit plan"
         message="You will automatically join this plan if the host accepts your request."
-        confirmLabel="Submit"
+        confirmLabel={busy ? 'Sending…' : 'Submit'}
         onCancel={() => {
+          if (busy) return
           setEditRequestId(null)
           setValue('')
         }}
@@ -127,10 +131,14 @@ export function RequestEditModal() {
             setPickerOpen(true)
             return
           }
-          setJoinState(editRequestId, 'requested')
-          setEditRequestId(null)
-          setValue('')
-          setRequestSentOpen(true)
+          setBusy(true)
+          void requestEdit(editRequestId, value)
+            .then(() => {
+              setEditRequestId(null)
+              setValue('')
+            })
+            .catch((err) => console.error(err))
+            .finally(() => setBusy(false))
         }}
       >
         <button
@@ -218,7 +226,7 @@ export function ShareModal() {
 }
 
 export function PostMenuSheet() {
-  const { menuId, setMenuId, setShareId, setEditRequestId } = useFeed()
+  const { menuId, setMenuId, setShareId, setEditRequestId, hideFromFeed } = useFeed()
   const navigate = useNavigate()
   if (!menuId) return null
 
@@ -273,7 +281,7 @@ export function PostMenuSheet() {
           <li>
             <button
               type="button"
-              onClick={() => setMenuId(null)}
+              onClick={() => void hideFromFeed(menuId)}
               className="flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-muted hover:bg-feed-gap"
             >
               <Trash2 size={20} />
@@ -286,20 +294,10 @@ export function PostMenuSheet() {
   )
 }
 
-const JOINED_PEOPLE = [
-  { name: 'Alex', avatar: '/images/avatar-nick.jpg' },
-  { name: 'Sam', avatar: '/images/avatar-sarah.jpg' },
-  { name: 'Riley', avatar: '/images/avatar-jimme.jpg' },
-  { name: 'Jordan', avatar: '/images/avatar-zack.jpg' },
-  { name: 'Casey', avatar: '/images/avatar-kyle.jpg' },
-]
-
 export function PeopleJoinedSheet() {
-  const { peopleId, setPeopleId, items } = useFeed()
-  const item = items.find((i) => i.id === peopleId)
-  const count =
-    item?.type === 'activity' ? parseSpots(item.spots).filled : 0
-  const people = useMemo(() => JOINED_PEOPLE.slice(0, Math.max(count, 0)), [count])
+  const { peopleId, setPeopleId, peopleList } = useFeed()
+  const people = peopleList
+  const count = people.filter((p) => p.role !== 'Host').length
 
   if (!peopleId) return null
 
@@ -318,9 +316,20 @@ export function PeopleJoinedSheet() {
         ) : (
           <ul className="px-2 py-2">
             {people.map((p) => (
-              <li key={p.name} className="flex items-center gap-3 px-4 py-3">
-                <img src={p.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
-                <span className="text-[15px] font-semibold text-ink">{p.name}</span>
+              <li key={p.uid || p.name} className="flex items-center gap-3 px-4 py-3">
+                {p.avatar ? (
+                  <img src={p.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-pill text-[12px] font-bold text-muted">
+                    {(p.name[0] || '?').toUpperCase()}
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <span className="text-[15px] font-semibold text-ink">{p.name}</span>
+                  {p.role ? (
+                    <p className="text-[12px] text-muted">{p.role}</p>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>

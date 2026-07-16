@@ -22,10 +22,18 @@ function NotifText({ parts }: { parts: NotificationItem['parts'] }) {
 }
 
 export function NotificationsPage() {
-  const { notifications, unreadMessages, removeNotification, clearNotificationActions } =
-    useNotify()
+  const {
+    loading,
+    error,
+    notifications,
+    unreadMessages,
+    removeNotification,
+    runNotificationAction,
+    refresh,
+  } = useNotify()
   const [manageId, setManageId] = useState<string | null>(null)
-  const empty = notifications.length === 0
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const empty = !loading && !error && notifications.length === 0
 
   return (
     <NotifyShell tip="Accept invites, friend requests, and plan updates here. Tap the mail icon for Messages.">
@@ -48,7 +56,22 @@ export function NotificationsPage() {
           </Link>
         </header>
 
-        {empty ? (
+        {loading ? (
+          <p className="flex-1 flex items-center justify-center px-6 py-16 text-[14px] text-muted">
+            Loading…
+          </p>
+        ) : error ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 py-16">
+            <p className="text-center text-[14px] text-red-500">{error}</p>
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              className="rounded-full bg-brand px-5 py-2.5 text-[13px] font-semibold text-white"
+            >
+              Retry
+            </button>
+          </div>
+        ) : empty ? (
           <div className="flex-1 flex flex-col items-center justify-center px-6 py-16">
             <Bell size={72} strokeWidth={1.25} className="text-brand/25" />
             <p className="mt-4 text-[14px] text-muted text-center">
@@ -85,9 +108,15 @@ export function NotificationsPage() {
                         <button
                           key={a.label}
                           type="button"
-                          onClick={() => clearNotificationActions(n.id)}
+                          disabled={busyId === n.id}
+                          onClick={() => {
+                            setBusyId(n.id)
+                            void runNotificationAction(n.id, a.label).finally(() =>
+                              setBusyId(null),
+                            )
+                          }}
                           className={[
-                            'min-w-[88px] rounded-xl px-4 py-2 text-[13px] font-semibold',
+                            'min-w-[88px] rounded-xl px-4 py-2 text-[13px] font-semibold disabled:opacity-50',
                             a.kind === 'primary'
                               ? 'bg-brand text-white'
                               : 'bg-pill text-brand',
@@ -109,7 +138,7 @@ export function NotificationsPage() {
         <button
           type="button"
           onClick={() => {
-            if (manageId) removeNotification(manageId)
+            if (manageId) void removeNotification(manageId)
             setManageId(null)
           }}
           className="flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-left hover:bg-feed-gap"

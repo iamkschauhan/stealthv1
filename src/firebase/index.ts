@@ -5,3 +5,8 @@ export {
   getFirebaseStorage,
 } from './client'
 export { firebaseConfig } from './config'
+export {
+  initAppCheck,
+  initPhoneRecaptchaConfig,
+  getRecaptchaSiteKey,
+} from './appCheck'

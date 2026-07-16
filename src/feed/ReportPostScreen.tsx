@@ -1,14 +1,61 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Check, ChevronLeft, CloudUpload } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useAuth } from '../auth'
+import { uploadImage } from '../data/storage'
+import { submitReport } from '../feed/feedActions'
 
 export function ReportPostScreen() {
   const { postId } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [text, setText] = useState('')
-  const [photo, setPhoto] = useState(false)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
   const [submitted, setSubmitted] = useState(false)
-  const ready = text.trim().length > 0
+  const [error, setError] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const ready = text.trim().length > 0 && !busy
+
+  async function onFile(file: File | undefined) {
+    if (!file || !user) return
+    setBusy(true)
+    setError(null)
+    try {
+      const url = await uploadImage(
+        `reports/${user.uid}/${Date.now()}`,
+        file,
+        { contentType: file.type || 'image/jpeg' },
+      )
+      setPhotoUrl(url)
+    } catch (err) {
+      console.error(err)
+      setError(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function submit() {
+    if (!user || !postId || !ready) return
+    setBusy(true)
+    setError(null)
+    try {
+      await submitReport({
+        reporterId: user.uid,
+        planId: postId,
+        details: text.trim(),
+        photoUrl: photoUrl ?? undefined,
+      })
+      setSubmitted(true)
+      window.setTimeout(() => navigate('/home'), 900)
+    } catch (err) {
+      console.error(err)
+      setError(err instanceof Error ? err.message : 'Submit failed')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="min-h-[100dvh] bg-feed-gap flex justify-center px-0 sm:px-6 lg:px-8">
@@ -37,28 +84,39 @@ export function ReportPostScreen() {
             placeholder="Provide details"
             className="mb-4 w-full resize-none rounded-2xl bg-onboard-input px-4 py-3.5 text-[15px] outline-none focus:ring-2 focus:ring-brand/30"
           />
-          {photo ? (
+          {photoUrl ? (
             <img
-              src="/images/golf.jpg"
+              src={photoUrl}
               alt=""
               className="mb-3 h-24 w-24 rounded-xl object-cover"
             />
           ) : null}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => void onFile(e.target.files?.[0])}
+          />
           <button
             type="button"
-            onClick={() => setPhoto(true)}
-            className="flex items-center gap-2 text-[14px] font-medium text-brand"
+            disabled={busy}
+            onClick={() => fileRef.current?.click()}
+            className="flex items-center gap-2 text-[14px] font-medium text-brand disabled:opacity-60"
           >
             <CloudUpload size={18} />
             Upload photo
           </button>
+          {error ? (
+            <p className="mt-3 text-[13px] text-red-500">{error}</p>
+          ) : null}
         </div>
 
         <div className="px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             disabled={!ready && !submitted}
-            onClick={() => setSubmitted(true)}
+            onClick={() => void submit()}
             className={[
               'flex w-full items-center justify-center gap-2 rounded-full py-4 text-[15px] font-semibold',
               submitted
@@ -72,6 +130,8 @@ export function ReportPostScreen() {
               <>
                 <Check size={18} /> Submitted
               </>
+            ) : busy ? (
+              'Submitting…'
             ) : (
               'Submit'
             )}

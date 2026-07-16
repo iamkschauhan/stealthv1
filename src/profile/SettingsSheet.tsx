@@ -12,6 +12,8 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import { useAuth } from '../auth'
+import { deleteAccount } from '../data/account'
 import { useProfile } from './ProfileContext'
 import { SETTINGS_MENU } from '../settings/data'
 import { ConfirmModal } from '../settings/ui'
@@ -29,10 +31,12 @@ const ICONS = {
 
 export function SettingsSheet() {
   const { settingsOpen, setSettingsOpen } = useProfile()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [logoutOpen, setLogoutOpen] = useState(false)
   const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0)
   const [deleteText, setDeleteText] = useState('')
+  const [busy, setBusy] = useState(false)
 
   if (!settingsOpen && !logoutOpen && deleteStep === 0) return null
 
@@ -111,8 +115,13 @@ export function SettingsSheet() {
         confirmDanger
         onCancel={() => setLogoutOpen(false)}
         onConfirm={() => {
-          setLogoutOpen(false)
-          navigate('/onboarding/splash')
+          setBusy(true)
+          void logout()
+            .then(() => {
+              setLogoutOpen(false)
+              navigate('/onboarding/splash')
+            })
+            .finally(() => setBusy(false))
         }}
       />
 
@@ -163,17 +172,31 @@ export function SettingsSheet() {
             </div>
             <button
               type="button"
-              disabled={deleteText !== 'DELETE'}
+              disabled={deleteText !== 'DELETE' || busy || !user}
               onClick={() => {
-                setDeleteStep(0)
-                navigate('/onboarding/splash')
+                if (!user) return
+                setBusy(true)
+                void deleteAccount(user.uid)
+                  .then(() => {
+                    setDeleteStep(0)
+                    navigate('/onboarding/splash')
+                  })
+                  .catch((err) => {
+                    console.error(err)
+                    alert(
+                      err instanceof Error
+                        ? err.message
+                        : 'Could not delete account. You may need to re-authenticate.',
+                    )
+                  })
+                  .finally(() => setBusy(false))
               }}
               className={[
-                'w-full border-t border-gray-200 py-3.5 text-[15px] font-semibold',
+                'w-full border-t border-gray-200 py-3.5 text-[15px] font-semibold disabled:opacity-50',
                 deleteText === 'DELETE' ? 'text-red-500' : 'text-[#c7c7cc]',
               ].join(' ')}
             >
-              Permanently delete
+              {busy ? 'Deleting…' : 'Permanently delete'}
             </button>
             <button
               type="button"

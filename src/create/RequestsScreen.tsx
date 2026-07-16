@@ -57,7 +57,7 @@ export function RequestsScreen() {
                     <button
                       type="button"
                       aria-label="Deny"
-                      onClick={() => resolveRequest(r.id, false)}
+                      onClick={() => void resolveRequest(r.id, false)}
                       className="flex h-9 w-9 items-center justify-center rounded-full bg-pill text-brand"
                     >
                       <X size={18} strokeWidth={2.5} />
@@ -65,7 +65,7 @@ export function RequestsScreen() {
                     <button
                       type="button"
                       aria-label="Accept"
-                      onClick={() => resolveRequest(r.id, true)}
+                      onClick={() => void resolveRequest(r.id, true)}
                       className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-white"
                     >
                       <Check size={18} strokeWidth={2.5} />

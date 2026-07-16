@@ -6,6 +6,7 @@ import {
   Camera,
   List,
 } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProfile } from './ProfileContext'
 import { PROFILE_TABS } from './data'
@@ -139,11 +140,28 @@ export function ProfileTabs() {
 }
 
 export function PhotosTab() {
-  const { user, setViewingPhoto, patch } = useProfile()
+  const { user, setViewingPhoto, uploadGalleryPhoto } = useProfile()
+  const fileRef = useRef<HTMLInputElement>(null)
   const slots = Array.from({ length: 6 })
+  const [busy, setBusy] = useState(false)
 
   return (
     <div className="px-4 sm:px-6 pb-8">
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (!file) return
+          setBusy(true)
+          void uploadGalleryPhoto(file).finally(() => {
+            setBusy(false)
+            if (fileRef.current) fileRef.current.value = ''
+          })
+        }}
+      />
       <div className="grid grid-cols-3 gap-2.5 md:grid-cols-4 lg:grid-cols-3">
         {slots.map((_, i) => {
           const src = user.photos[i]
@@ -163,15 +181,9 @@ export function PhotosTab() {
             <button
               key={i}
               type="button"
-              onClick={() =>
-                patch({
-                  photos: [
-                    ...user.photos,
-                    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop',
-                  ].slice(0, 6),
-                })
-              }
-              className="flex aspect-square items-center justify-center rounded-2xl bg-pill text-brand"
+              disabled={busy}
+              onClick={() => fileRef.current?.click()}
+              className="flex aspect-square items-center justify-center rounded-2xl bg-pill text-brand disabled:opacity-50"
             >
               <span className="text-3xl font-light">☺︎+</span>
             </button>

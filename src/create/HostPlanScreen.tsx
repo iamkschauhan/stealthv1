@@ -11,7 +11,7 @@ import {
   User,
   Users,
 } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ACTIVITY_BANNERS } from './data'
 import { useCreate } from './CreateContext'
 import { CreateShell } from './ui'
@@ -19,6 +19,7 @@ import { ManageOverlays } from './ManageOverlays'
 
 export function HostPlanScreen() {
   const navigate = useNavigate()
+  const { planId: routePlanId } = useParams()
   const {
     draft,
     going,
@@ -26,26 +27,59 @@ export function HostPlanScreen() {
     requests,
     setManageTarget,
     ensureSamplePlan,
+    postedPlanId,
+    reloadPlan,
+    livePlan,
+    busy,
   } = useCreate()
   const [manageOpen, setManageOpen] = useState(false)
   const [goingSheet, setGoingSheet] = useState(false)
   const [invitedSheet, setInvitedSheet] = useState(false)
   const [seeMore, setSeeMore] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  const activeId = routePlanId || postedPlanId
 
   useEffect(() => {
-    ensureSamplePlan()
-  }, [ensureSamplePlan])
+    if (!activeId) {
+      ensureSamplePlan()
+      return
+    }
+    void reloadPlan(activeId).catch((err) => {
+      console.error(err)
+      setLoadError(err instanceof Error ? err.message : 'Failed to load plan')
+    })
+  }, [activeId, ensureSamplePlan, reloadPlan])
 
   const banner =
-    ACTIVITY_BANNERS[draft.activity || 'Golf'] ??
+    livePlan?.coverUrl ||
+    ACTIVITY_BANNERS[draft.activity || 'Golf'] ||
     'https://images.unsplash.com/photo-1535131749006-b7f58c990fdb?w=800&h=400&fit=crop'
   const guests = going.filter((p) => p.role !== 'Host')
   const filled = guests.length
-  const total = Number(draft.spots) || 4
+  const total = Number(draft.spots) || livePlan?.spotsTotal || 4
   const spotsLabel = `${filled}/${total} spots filled`
   const details = draft.details || 'Let’s meet on the putting green 30 mins before!'
   const short = details.length > 42 ? `${details.slice(0, 42)}…` : details
-  const title = draft.activity || 'Golf'
+  const title = draft.activity || livePlan?.activity || 'Plan'
+  const chatPath = activeId ? `/messages/${activeId}` : '/messages'
+
+  if (loadError) {
+    return (
+      <CreateShell>
+        <div className="flex min-h-[50dvh] flex-col items-center justify-center gap-3 px-6">
+          <p className="text-[15px] text-red-500">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => navigate('/create')}
+            className="rounded-full bg-brand px-5 py-2.5 text-[14px] font-semibold text-white"
+          >
+            Create a plan
+          </button>
+        </div>
+      </CreateShell>
+    )
+  }
 
   return (
     <CreateShell tip="Manage invites, share, edit, review requests, and remove people from your plan.">
@@ -59,16 +93,15 @@ export function HostPlanScreen() {
           >
             ‹
           </button>
-          <h1 className="flex-1 text-center text-[17px] font-bold truncate">{title}</h1>
+          <h1 className="flex-1 text-center text-[17px] font-bold truncate">
+            {busy && !draft.activity ? 'Loading…' : title}
+          </h1>
           <Link
-            to="/messages/golf"
+            to={chatPath}
             className="relative rounded-lg p-2 text-ink hover:bg-feed-gap"
             aria-label="Messages"
           >
             <MessageSquareMore size={20} />
-            <span className="absolute top-1 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[9px] font-bold text-white">
-              2
-            </span>
           </Link>
         </header>
 
@@ -158,7 +191,7 @@ export function HostPlanScreen() {
 
             <div className="space-y-2.5 pt-1">
               <Link
-                to="/messages/golf"
+                to={chatPath}
                 className="flex w-full items-center justify-center rounded-full bg-ink py-3.5 text-[15px] font-semibold text-white"
               >
                 Chat
@@ -184,7 +217,7 @@ export function HostPlanScreen() {
               </div>
               <ul>
                 {guests.slice(0, 3).map((p) => (
-                  <li key={p.name} className="flex items-center gap-3 py-2.5">
+                  <li key={p.uid || p.name} className="flex items-center gap-3 py-2.5">
                     <img src={p.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
                     <span className="flex-1 text-[15px] font-semibold">{p.name}</span>
                     <button
@@ -213,7 +246,7 @@ export function HostPlanScreen() {
               </div>
               <ul>
                 {invited.slice(0, 3).map((p) => (
-                  <li key={p.name} className="flex items-center gap-3 py-2.5">
+                  <li key={p.uid || p.name} className="flex items-center gap-3 py-2.5">
                     {p.reserved ? (
                       <span className="flex h-11 w-11 items-center justify-center rounded-full bg-pill text-[12px] font-bold text-muted">
                         ···

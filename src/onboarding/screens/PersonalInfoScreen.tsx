@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { Info } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import { useOnboarding } from '../OnboardingContext'
-import { getNextStep } from '../flow'
 import {
   OnboardingShell,
   OnboardingTitle,
@@ -12,10 +10,12 @@ import {
 } from '../ui'
 
 export function PersonalInfoScreen() {
-  const navigate = useNavigate()
-  const { data, patch } = useOnboarding()
+  const { data, patch, advance, busy } = useOnboarding()
   const [showTip, setShowTip] = useState(false)
-  const ready = data.firstName.trim().length >= 1 && data.birthday.trim().length >= 4
+  const ready =
+    data.firstName.trim().length >= 1 &&
+    data.birthday.trim().length >= 4 &&
+    !busy
 
   return (
     <OnboardingShell
@@ -31,9 +31,9 @@ export function PersonalInfoScreen() {
           <PrimaryButton
             enabled={ready}
             className="mt-3"
-            onClick={() => ready && navigate(getNextStep('personal-info')!.path)}
+            onClick={() => ready && void advance('personal-info')}
           >
-            Next
+            {busy ? 'Saving…' : 'Next'}
           </PrimaryButton>
         </>
       }

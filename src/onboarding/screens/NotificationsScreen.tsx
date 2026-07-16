@@ -1,17 +1,12 @@
-import { useNavigate } from 'react-router-dom'
 import { useOnboarding } from '../OnboardingContext'
-import { getNextStep } from '../flow'
 import { ProgressDots } from '../ProgressDots'
 import { OnboardingShell, OnboardingTitle, PrimaryButton } from '../ui'
 
 export function NotificationsScreen() {
-  const navigate = useNavigate()
-  const { patch } = useOnboarding()
-  const next = getNextStep('notifications')!.path
+  const { advance, busy } = useOnboarding()
 
   function choose(enabled: boolean) {
-    patch({ notificationsEnabled: enabled })
-    navigate(next)
+    void advance('notifications', { notificationsEnabled: enabled })
   }
 
   return (
@@ -32,15 +27,17 @@ export function NotificationsScreen() {
         <div className="grid grid-cols-2 border-t border-gray-200">
           <button
             type="button"
+            disabled={busy}
             onClick={() => choose(false)}
-            className="border-r border-gray-200 py-3.5 text-[15px] text-onboard-gold"
+            className="border-r border-gray-200 py-3.5 text-[15px] text-onboard-gold disabled:opacity-50"
           >
             Disable
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={() => choose(true)}
-            className="py-3.5 text-[15px] font-bold text-onboard-gold"
+            className="py-3.5 text-[15px] font-bold text-onboard-gold disabled:opacity-50"
           >
             Enable
           </button>
@@ -48,8 +45,8 @@ export function NotificationsScreen() {
       </div>
 
       <div className="mt-auto pt-8">
-        <PrimaryButton enabled onClick={() => choose(true)}>
-          Continue
+        <PrimaryButton enabled={!busy} onClick={() => choose(true)}>
+          {busy ? 'Saving…' : 'Continue'}
         </PrimaryButton>
       </div>
     </OnboardingShell>

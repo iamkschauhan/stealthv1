@@ -10,6 +10,9 @@ import { SearchOverlay } from './feed/SearchOverlay'
 import { DatePicker } from './feed/DatePicker'
 
 function MadePlansBanner() {
+  const { upcomingCount } = useFeed()
+  if (upcomingCount <= 0) return null
+
   return (
     <div className="relative mx-auto mb-2 w-full max-w-xl lg:max-w-2xl px-4 md:px-0">
       <div className="flex items-start gap-3 rounded-2xl border border-gray-100 bg-white p-3.5 shadow-sm">
@@ -17,13 +20,13 @@ function MadePlansBanner() {
           SA
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-bold text-brand">MEXICAN FOOD</p>
+          <p className="text-[13px] font-bold text-brand">YOUR PLANS</p>
           <p className="text-[12px] text-muted truncate">
-            Sat, Dec 23 · 7:00 AM · Laurel Lanes Country Club
+            {upcomingCount} upcoming plan{upcomingCount === 1 ? '' : 's'} you&apos;re hosting
           </p>
         </div>
         <span className="absolute top-2.5 right-6 md:right-2.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-[10px] font-bold text-white">
-          2
+          {upcomingCount}
         </span>
       </div>
     </div>
@@ -33,7 +36,7 @@ function MadePlansBanner() {
 function FeedBody() {
   const { setActive } = useAppNav()
   const navigate = useNavigate()
-  const { filteredItems } = useFeed()
+  const { filteredItems, loading, error, refreshFeed } = useFeed()
 
   function onNav(id: string) {
     setActive(id)
@@ -60,12 +63,35 @@ function FeedBody() {
           <main className="flex-1 min-w-0 pb-24 md:pb-8 pt-0 md:pt-5">
             <MadePlansBanner />
             <div className="mx-auto w-full max-w-xl lg:max-w-2xl flex flex-col gap-2 md:gap-4">
-              {filteredItems.length === 0 ? (
+              {loading ? (
                 <div className="rounded-2xl bg-white md:border md:border-gray-100 px-6 py-16 text-center">
-                  <p className="text-[15px] font-semibold text-ink">No plans match</p>
+                  <p className="text-[14px] text-muted">Loading plans…</p>
+                </div>
+              ) : error ? (
+                <div className="rounded-2xl bg-white md:border md:border-gray-100 px-6 py-16 text-center">
+                  <p className="text-[15px] font-semibold text-ink">Couldn&apos;t load feed</p>
+                  <p className="mt-1 text-[13px] text-red-500">{error}</p>
+                  <button
+                    type="button"
+                    onClick={() => void refreshFeed()}
+                    className="mt-4 rounded-full bg-brand px-5 py-2.5 text-[14px] font-semibold text-white"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : filteredItems.length === 0 ? (
+                <div className="rounded-2xl bg-white md:border md:border-gray-100 px-6 py-16 text-center">
+                  <p className="text-[15px] font-semibold text-ink">No plans yet</p>
                   <p className="mt-1 text-[13px] text-muted">
-                    Try clearing filters or picking another category.
+                    Post a plan or clear filters to see more.
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/create')}
+                    className="mt-4 rounded-full bg-brand px-5 py-2.5 text-[14px] font-semibold text-white"
+                  >
+                    Create a plan
+                  </button>
                 </div>
               ) : (
                 filteredItems.map((item) => <FeedCard key={item.id} item={item} />)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Shield,
   ThumbsUp,
@@ -7,7 +7,7 @@ import {
   X,
 } from 'lucide-react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { RATE_PEOPLE, findPastPlan } from './data'
+import { usePlans, type GoingPerson } from './PlansContext'
 import { PlansShell } from './shell'
 
 const TRAITS = [
@@ -21,7 +21,8 @@ type TraitId = (typeof TRAITS)[number]['id']
 
 export function RatePlanScreen() {
   const { id = '' } = useParams()
-  const plan = findPastPlan(id)
+  const { loading, getCard, ratePlan, loadPeople } = usePlans()
+  const plan = getCard(id)
   const navigate = useNavigate()
   const [score, setScore] = useState(0)
   const [feedback, setFeedback] = useState('')
@@ -29,19 +30,54 @@ export function RatePlanScreen() {
   const [noShows, setNoShows] = useState<string[]>([])
   const [friendReq, setFriendReq] = useState<string[]>([])
   const [traits, setTraits] = useState<Record<string, TraitId[]>>({})
+  const [people, setPeople] = useState<GoingPerson[]>([])
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (id) void loadPeople(id).then(setPeople)
+  }, [id, loadPeople])
+
+  if (loading && !plan) {
+    return (
+      <PlansShell tip="Loading…">
+        <p className="mx-auto max-w-xl py-20 text-center text-muted">Loading…</p>
+      </PlansShell>
+    )
+  }
 
   if (!plan) return <Navigate to="/plans" replace />
 
   const max = 300
 
-  function toggleTrait(name: string, trait: TraitId) {
+  function toggleTrait(uid: string, trait: TraitId) {
     setTraits((prev) => {
-      const cur = prev[name] ?? []
+      const cur = prev[uid] ?? []
       return {
         ...prev,
-        [name]: cur.includes(trait) ? cur.filter((t) => t !== trait) : [...cur, trait],
+        [uid]: cur.includes(trait) ? cur.filter((t) => t !== trait) : [...cur, trait],
       }
     })
+  }
+
+  async function submit() {
+    setBusy(true)
+    try {
+      const flatTraits = Object.entries(traits).flatMap(([uid, list]) =>
+        list.map((t) => `${uid}:${t}`),
+      )
+      await ratePlan(plan!.id, {
+        score: didNotAttend ? 0 : score || 5,
+        feedback: feedback || undefined,
+        traits: flatTraits,
+        noShow: noShows.length > 0,
+        didNotAttend,
+      })
+      navigate(`/plans/past/${plan!.id}`)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -59,8 +95,9 @@ export function RatePlanScreen() {
           <h1 className="flex-1 text-center text-[17px] font-bold">Rate plan</h1>
           <button
             type="button"
-            onClick={() => navigate(`/plans/past/${plan.id}`)}
-            className="px-2 py-1.5 text-[15px] font-semibold text-brand"
+            disabled={busy}
+            onClick={() => void submit()}
+            className="px-2 py-1.5 text-[15px] font-semibold text-brand disabled:opacity-50"
           >
             Done
           </button>
@@ -138,18 +175,24 @@ export function RatePlanScreen() {
             </p>
 
             <ul className="mt-4 divide-y divide-gray-100">
-              {RATE_PEOPLE.map((p) => {
-                const selected = traits[p.name] ?? []
-                const noShow = noShows.includes(p.name)
-                const requested = friendReq.includes(p.name)
+              {people.map((p) => {
+                const selected = traits[p.uid] ?? []
+                const noShow = noShows.includes(p.uid)
+                const requested = friendReq.includes(p.uid)
                 return (
-                  <li key={p.name} className="py-4">
+                  <li key={p.uid} className="py-4">
                     <div className="flex items-start gap-3">
-                      <img
-                        src={p.avatar}
-                        alt=""
-                        className="h-11 w-11 rounded-full object-cover"
-                      />
+                      {p.avatar ? (
+                        <img
+                          src={p.avatar}
+                          alt=""
+                          className="h-11 w-11 rounded-full object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-pill text-[14px] font-bold">
+                          {p.name.slice(0, 1)}
+                        </span>
+                      )}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -164,8 +207,8 @@ export function RatePlanScreen() {
                               onClick={() =>
                                 setFriendReq((f) =>
                                   requested
-                                    ? f.filter((n) => n !== p.name)
-                                    : [...f, p.name],
+                                    ? f.filter((n) => n !== p.uid)
+                                    : [...f, p.uid],
                                 )
                               }
                               className="mt-0.5 text-[13px] font-semibold text-brand"
@@ -178,8 +221,8 @@ export function RatePlanScreen() {
                             onClick={() =>
                               setNoShows((n) =>
                                 noShow
-                                  ? n.filter((x) => x !== p.name)
-                                  : [...n, p.name],
+                                  ? n.filter((x) => x !== p.uid)
+                                  : [...n, p.uid],
                               )
                             }
                             className="text-[13px] font-semibold text-accent"
@@ -196,7 +239,7 @@ export function RatePlanScreen() {
                                 <button
                                   key={tid}
                                   type="button"
-                                  onClick={() => toggleTrait(p.name, tid)}
+                                  onClick={() => toggleTrait(p.uid, tid)}
                                   className="flex flex-col items-center gap-1"
                                 >
                                   <span

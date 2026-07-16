@@ -1,21 +1,18 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Calendar, Clock, MapPin, MoreHorizontal, Search, X } from 'lucide-react'
 import { useFeed } from './FeedContext'
+import { searchPeople } from './feedActions'
 
 const RECENT_DEFAULT = ['Golf', 'Mexican food', 'Concert']
-
-const PEOPLE = [
-  { name: 'Nick', avatar: '/images/avatar-nick.jpg', meta: 'Host · Golf' },
-  { name: 'Sarah', avatar: '/images/avatar-sarah.jpg', meta: 'Host · Concert' },
-  { name: 'Jassie', avatar: '/images/avatar-jassie.jpg', meta: 'Couples plan' },
-  { name: 'Zack', avatar: '/images/avatar-zack.jpg', meta: 'Sports' },
-]
 
 export function SearchOverlay() {
   const { searchOpen, setSearchOpen, items, setMenuId } = useFeed()
   const [tab, setTab] = useState<'Plans' | 'People'>('Plans')
   const [query, setQuery] = useState('')
   const [recent, setRecent] = useState(RECENT_DEFAULT)
+  const [peopleResults, setPeopleResults] = useState<
+    { name: string; avatar: string; meta: string }[]
+  >([])
 
   const planResults = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -30,11 +27,28 @@ export function SearchOverlay() {
     )
   }, [items, query])
 
-  const peopleResults = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return []
-    return PEOPLE.filter((p) => p.name.toLowerCase().includes(q))
-  }, [query])
+  useEffect(() => {
+    if (tab !== 'People') return
+    const q = query.trim()
+    if (!q) {
+      setPeopleResults([])
+      return
+    }
+    let cancelled = false
+    void searchPeople(q).then((users) => {
+      if (cancelled) return
+      setPeopleResults(
+        users.map((u) => ({
+          name: u.displayName || 'User',
+          avatar: u.avatarUrl || '',
+          meta: u.location?.label || 'On StealthApp',
+        })),
+      )
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [query, tab])
 
   if (!searchOpen) return null
 

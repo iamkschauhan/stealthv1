@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { Info, MessageSquareWarning, User } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import { useOnboarding } from '../OnboardingContext'
-import { getNextStep } from '../flow'
 import {
   GoldLink,
   OnboardingShell,
@@ -14,10 +12,9 @@ import {
 const OPTIONS = ['Woman', 'Man', 'Non-binary'] as const
 
 export function IdentityScreen() {
-  const navigate = useNavigate()
-  const { data, patch } = useOnboarding()
+  const { data, patch, advance, busy } = useOnboarding()
   const [showOnProfile, setShowOnProfile] = useState(true)
-  const ready = !!data.identity
+  const ready = !!data.identity && !busy
 
   return (
     <OnboardingShell
@@ -31,11 +28,11 @@ export function IdentityScreen() {
             onChange={setShowOnProfile}
           />
           <PrimaryButton
-            enabled={ready}
+            enabled={ready && !busy}
             className="mt-3"
-            onClick={() => ready && navigate(getNextStep('identity')!.path)}
+            onClick={() => ready && void advance('identity')}
           >
-            Next
+            {busy ? 'Saving…' : 'Next'}
           </PrimaryButton>
         </>
       }

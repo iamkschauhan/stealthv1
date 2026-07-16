@@ -1,11 +1,10 @@
 import { useNavigate } from 'react-router-dom'
 import { useOnboarding } from '../OnboardingContext'
-import { getNextStep } from '../flow'
 import { OnboardingShell, OnboardingTitle, PrimaryButton } from '../ui'
 
 export function BirthdayConfirmScreen() {
   const navigate = useNavigate()
-  const { data } = useOnboarding()
+  const { data, advance, busy } = useOnboarding()
 
   return (
     <OnboardingShell
@@ -14,10 +13,10 @@ export function BirthdayConfirmScreen() {
       footer={
         <div className="flex flex-col gap-3">
           <PrimaryButton
-            enabled
-            onClick={() => navigate(getNextStep('birthday-confirm')!.path)}
+            enabled={!busy}
+            onClick={() => void advance('birthday-confirm')}
           >
-            Confirm
+            {busy ? 'Saving…' : 'Confirm'}
           </PrimaryButton>
           <button
             type="button"

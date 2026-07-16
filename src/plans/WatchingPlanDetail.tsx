@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Calendar,
   ChevronDown,
@@ -18,28 +18,29 @@ import {
   Users,
 } from 'lucide-react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import {
-  SUGGESTED,
-  WATCHING_GOING,
-  findWatchingPlan,
-} from './data'
+import { useAuth } from '../auth'
+import { SUGGESTED } from './data'
+import { usePlans, type GoingPerson } from './PlansContext'
 import { ConfirmDialog, PlansShell, SharePlanModal, Sheet } from './shell'
 
-type JoinStatus = 'idle' | 'waiting' | 'requested'
+type JoinStatus = 'idle' | 'waiting' | 'requested' | 'joined'
 
 const EDIT_FIELDS = ['Available spots', 'Start time', 'Location'] as const
 
 export function WatchingPlanDetail() {
   const { id = '' } = useParams()
-  const plan = findWatchingPlan(id)
+  const { loading, getCard, stopWatch, joinFromWatch, requestEdit, loadPeople, leaveOrCancel } =
+    usePlans()
+  const { profile } = useAuth()
+  const plan = getCard(id)
   const navigate = useNavigate()
   const [seeMore, setSeeMore] = useState(false)
   const [pendingInfoOpen, setPendingInfoOpen] = useState(false)
   const [goingOpen, setGoingOpen] = useState(false)
+  const [people, setPeople] = useState<GoingPerson[]>([])
   const [menuOpen, setMenuOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [joinStatus, setJoinStatus] = useState<JoinStatus>('idle')
-  const [linked, setLinked] = useState(false)
   const [joinConfirm, setJoinConfirm] = useState(false)
   const [waitConfirm, setWaitConfirm] = useState(false)
   const [coupleConfirm, setCoupleConfirm] = useState(false)
@@ -51,6 +52,21 @@ export function WatchingPlanDetail() {
   const [editField, setEditField] = useState<(typeof EDIT_FIELDS)[number]>('Available spots')
   const [editNote, setEditNote] = useState('')
   const [editPicker, setEditPicker] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const linked = !!profile?.coupleLinkedUid
+
+  useEffect(() => {
+    if (goingOpen && id) void loadPeople(id).then(setPeople)
+  }, [goingOpen, id, loadPeople])
+
+  if (loading && !plan) {
+    return (
+      <PlansShell tip="Loading…">
+        <p className="mx-auto max-w-xl py-20 text-center text-muted">Loading plan…</p>
+      </PlansShell>
+    )
+  }
 
   if (!plan) return <Navigate to="/plans?tab=Watching" replace />
 
@@ -68,7 +84,7 @@ export function WatchingPlanDetail() {
       setLeaveWaitOpen(true)
       return
     }
-    if (joinStatus === 'requested') return
+    if (joinStatus === 'requested' || joinStatus === 'joined') return
     if (isCouples && !linked) {
       setUnableOpen(true)
       return
@@ -84,15 +100,28 @@ export function WatchingPlanDetail() {
     setJoinConfirm(true)
   }
 
-  function completeJoin(asWaiting: boolean) {
+  async function completeJoin() {
     setJoinConfirm(false)
     setWaitConfirm(false)
     setCoupleConfirm(false)
-    if (asWaiting) {
-      setJoinStatus('waiting')
-    } else {
+    setBusy(true)
+    try {
+      const state = await joinFromWatch(plan!.id)
+      if (state === 'joined') {
+        setJoinStatus('joined')
+        navigate(`/plans/upcoming/${plan!.id}`)
+        return
+      }
+      if (state === 'waiting') {
+        setJoinStatus('waiting')
+        return
+      }
       setJoinStatus('requested')
       setSentOpen(true)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -101,9 +130,11 @@ export function WatchingPlanDetail() {
       ? 'Joined waiting pool'
       : joinStatus === 'requested'
         ? 'Requested'
-        : isFull
-          ? 'Join waiting pool'
-          : 'Join'
+        : joinStatus === 'joined'
+          ? 'Going'
+          : isFull
+            ? 'Join waiting pool'
+            : 'Join'
 
   return (
     <PlansShell tip="Watching a plan — join, join the waiting pool, or request an edit while you wait.">
@@ -129,7 +160,7 @@ export function WatchingPlanDetail() {
               <button
                 type="button"
                 onClick={onPrimaryJoin}
-                disabled={joinStatus === 'requested'}
+                disabled={joinStatus === 'requested' || joinStatus === 'joined' || busy}
                 className={[
                   'flex flex-1 items-center justify-center gap-1.5 rounded-xl py-3 text-[13px] sm:text-[14px] font-semibold',
                   joinStatus === 'waiting' || joinStatus === 'requested'
@@ -325,28 +356,27 @@ export function WatchingPlanDetail() {
 
       <Sheet open={goingOpen} title="Going" onClose={() => setGoingOpen(false)}>
         <ul className="px-4 py-2 pb-6">
-          {WATCHING_GOING.map((p) => (
-            <li key={p.names} className="flex items-center gap-3 py-3">
-              <div className="relative flex h-11 w-[3.25rem] shrink-0">
-                <img
-                  src={p.avatars[0]}
-                  alt=""
-                  className="absolute left-0 h-11 w-11 rounded-full object-cover ring-2 ring-white"
-                />
-                <img
-                  src={p.avatars[1]}
-                  alt=""
-                  className="absolute left-4 h-11 w-11 rounded-full object-cover ring-2 ring-white"
-                />
-              </div>
-              <p className="text-[15px] font-semibold">
-                {p.names}
-                {p.role ? (
-                  <span className="font-normal text-muted"> · {p.role}</span>
-                ) : null}
-              </p>
-            </li>
-          ))}
+          {people.length === 0 ? (
+            <li className="py-6 text-center text-[14px] text-muted">No one yet</li>
+          ) : (
+            people.map((p) => (
+              <li key={p.uid} className="flex items-center gap-3 py-3">
+                {p.avatar ? (
+                  <img src={p.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-pill text-[14px] font-bold">
+                    {p.name.slice(0, 1)}
+                  </span>
+                )}
+                <p className="text-[15px] font-semibold">
+                  {p.name}
+                  {p.role ? (
+                    <span className="font-normal text-muted"> · {p.role}</span>
+                  ) : null}
+                </p>
+              </li>
+            ))
+          )}
         </ul>
       </Sheet>
 
@@ -394,7 +424,7 @@ export function WatchingPlanDetail() {
         message="You can always leave before the plan's closing time."
         confirmLabel="Join"
         onCancel={() => setJoinConfirm(false)}
-        onConfirm={() => completeJoin(false)}
+        onConfirm={() => void completeJoin()}
       />
 
       <ConfirmDialog
@@ -403,7 +433,7 @@ export function WatchingPlanDetail() {
         message="You'll move in automatically if a spot opens before the plan closes."
         confirmLabel="Join waiting pool"
         onCancel={() => setWaitConfirm(false)}
-        onConfirm={() => completeJoin(true)}
+        onConfirm={() => void completeJoin()}
       />
 
       <ConfirmDialog
@@ -412,7 +442,7 @@ export function WatchingPlanDetail() {
         message="You can always leave before the plan's closing time."
         confirmLabel="Join"
         onCancel={() => setCoupleConfirm(false)}
-        onConfirm={() => completeJoin(false)}
+        onConfirm={() => void completeJoin()}
       />
 
       <ConfirmDialog
@@ -424,8 +454,7 @@ export function WatchingPlanDetail() {
         onCancel={() => setUnableOpen(false)}
         onConfirm={() => {
           setUnableOpen(false)
-          setLinked(true)
-          setCoupleConfirm(true)
+          navigate('/profile')
         }}
       />
 
@@ -447,7 +476,10 @@ export function WatchingPlanDetail() {
         onCancel={() => setLeaveWaitOpen(false)}
         onConfirm={() => {
           setLeaveWaitOpen(false)
-          setJoinStatus('idle')
+          void leaveOrCancel(plan.id).then(() => {
+            setJoinStatus('idle')
+            navigate('/plans?tab=Watching')
+          })
         }}
       />
 
@@ -457,7 +489,10 @@ export function WatchingPlanDetail() {
         message="This plan will be removed from your Watching list."
         confirmLabel="Stop watching"
         onCancel={() => setStopWatchOpen(false)}
-        onConfirm={() => navigate('/plans?tab=Watching')}
+        onConfirm={() => {
+          setStopWatchOpen(false)
+          void stopWatch(plan.id).then(() => navigate('/plans?tab=Watching'))
+        }}
       />
 
       <ConfirmDialog
@@ -470,10 +505,14 @@ export function WatchingPlanDetail() {
           setEditNote('')
         }}
         onConfirm={() => {
-          setEditOpen(false)
-          setEditNote('')
-          setJoinStatus('requested')
-          setSentOpen(true)
+          void requestEdit(plan.id, editField, editNote)
+            .then(() => {
+              setEditOpen(false)
+              setEditNote('')
+              setJoinStatus('requested')
+              setSentOpen(true)
+            })
+            .catch(console.error)
         }}
       >
         <div className="mt-4 space-y-3 text-left">

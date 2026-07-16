@@ -13,7 +13,7 @@ import {
 import { SettingsSheet, PhotoViewer } from './Overlays'
 
 function ProfileBody() {
-  const { tab } = useProfile()
+  const { tab, loading } = useProfile()
   const navigate = useNavigate()
 
   return (
@@ -47,12 +47,18 @@ function ProfileBody() {
 
           <main className="flex-1 min-w-0 pb-24 md:pb-10 md:pt-5">
             <div className="mx-auto w-full max-w-xl lg:max-w-2xl bg-white md:rounded-2xl md:border md:border-gray-100 md:shadow-sm overflow-hidden">
-              <ProfileHeader />
-              <ProfileTabs />
-              {tab === 'Photos' ? <PhotosTab /> : null}
-              {tab === 'About' ? <AboutTab /> : null}
-              {tab === 'Activities' ? <ActivitiesTab /> : null}
-              {tab === 'Friends' ? <FriendsTab /> : null}
+              {loading ? (
+                <p className="px-6 py-20 text-center text-[14px] text-muted">Loading profile…</p>
+              ) : (
+                <>
+                  <ProfileHeader />
+                  <ProfileTabs />
+                  {tab === 'Photos' ? <PhotosTab /> : null}
+                  {tab === 'About' ? <AboutTab /> : null}
+                  {tab === 'Activities' ? <ActivitiesTab /> : null}
+                  {tab === 'Friends' ? <FriendsTab /> : null}
+                </>
+              )}
             </div>
           </main>
 

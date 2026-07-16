@@ -3,6 +3,7 @@ import { getAuth, type Auth } from 'firebase/auth'
 import { getFirestore, type Firestore } from 'firebase/firestore'
 import { getStorage, type FirebaseStorage } from 'firebase/storage'
 import { assertFirebaseConfig, firebaseConfig } from './config'
+import { initAppCheck, initPhoneRecaptchaConfig } from './appCheck'
 
 let app: FirebaseApp | undefined
 let auth: Auth | undefined
@@ -14,6 +15,8 @@ export function getFirebaseApp(): FirebaseApp {
   if (!app) {
     assertFirebaseConfig()
     app = getApps()[0] ?? initializeApp(firebaseConfig)
+    initAppCheck()
+    void initPhoneRecaptchaConfig()
   }
   return app
 }
