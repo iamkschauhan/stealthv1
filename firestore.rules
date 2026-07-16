@@ -13,8 +13,18 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/plans/$(planId)).data;
     }
 
+    function planExists(planId) {
+      return exists(/databases/$(database)/documents/plans/$(planId));
+    }
+
     function isPlanHost(planId) {
-      return signedIn() && planDoc(planId).hostId == request.auth.uid;
+      return signedIn()
+        && planExists(planId)
+        && planDoc(planId).hostId == request.auth.uid;
+    }
+
+    function threadExists(threadId) {
+      return exists(/databases/$(database)/documents/threads/$(threadId));
     }
 
     function threadDoc(threadId) {
@@ -22,7 +32,14 @@ service cloud.firestore {
     }
 
     function isThreadMember(threadId) {
-      return signedIn() && request.auth.uid in threadDoc(threadId).memberIds;
+      return signedIn()
+        && threadExists(threadId)
+        && request.auth.uid in threadDoc(threadId).memberIds;
+    }
+
+    // threadId === planId; host can always open chat for their plan
+    function canAccessThread(threadId) {
+      return isThreadMember(threadId) || isPlanHost(threadId);
     }
 
     // —— Users ——
@@ -116,14 +133,20 @@ service cloud.firestore {
     }
 
     // —— Chat ——
+    // threadId === planId (deep links /messages/:planId)
     match /threads/{threadId} {
-      allow read: if signedIn()
+      // Allow get of missing docs so clients can check before create
+      allow get: if signedIn() && (
+        resource == null
+        || request.auth.uid in resource.data.memberIds
+        || isPlanHost(threadId)
+      );
+      allow list: if signedIn()
         && request.auth.uid in resource.data.memberIds;
       allow create: if signedIn()
-        && request.auth.uid in request.resource.data.memberIds;
-      // Members may bump message metadata / unread / hide — not rewrite membership freely
-      allow update: if signedIn()
-        && request.auth.uid in resource.data.memberIds
+        && request.auth.uid in request.resource.data.memberIds
+        && request.resource.data.planId == threadId;
+      allow update: if canAccessThread(threadId)
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly([
               'lastMessage',
@@ -137,10 +160,10 @@ service cloud.firestore {
             ]);
 
       match /messages/{messageId} {
-        allow read: if isThreadMember(threadId);
+        allow read: if canAccessThread(threadId);
         allow create: if signedIn()
           && request.resource.data.senderId == request.auth.uid
-          && isThreadMember(threadId);
+          && canAccessThread(threadId);
         allow update, delete: if signedIn()
           && resource.data.senderId == request.auth.uid;
       }

@@ -22,7 +22,13 @@ export function getFirebaseApp(): FirebaseApp {
 }
 
 export function getFirebaseAuth(): Auth {
-  if (!auth) auth = getAuth(getFirebaseApp())
+  if (!auth) {
+    auth = getAuth(getFirebaseApp())
+    // Must be set before any RecaptchaVerifier is constructed (DEV test phones).
+    if (import.meta.env.DEV) {
+      auth.settings.appVerificationDisabledForTesting = true
+    }
+  }
   return auth
 }
 

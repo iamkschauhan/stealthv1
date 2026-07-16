@@ -56,8 +56,8 @@ export function draftToPlanFields(
       ? `${draft.activity} · ${draft.activitySub}`
       : draft.activity,
     activity: draft.activity,
-    activitySub: draft.activitySub || undefined,
-    details: draft.details || undefined,
+    activitySub: draft.activitySub || '',
+    details: draft.details || '',
     locationLabel: draft.location,
     startsAt: parseDraftDateTime(draft.startDate, draft.startTime),
     startDateLabel: draft.startDate,

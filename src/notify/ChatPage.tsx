@@ -53,7 +53,11 @@ export function ChatPage() {
     async function boot() {
       if (!threadId || !user) return
       try {
-        await ensureThreadForPlan(threadId)
+        const created = await ensureThreadForPlan(threadId)
+        if (!created) {
+          if (!cancelled) setReady(true)
+          return
+        }
         await refresh()
         await loadMessages(threadId)
         await markThreadRead(threadId)

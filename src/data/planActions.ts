@@ -1,6 +1,5 @@
 import { doc } from 'firebase/firestore'
-import { getDb } from '../firebase'
-import { createPlan, getPlan, updatePlan } from './plans'
+import { createPlan, getPlan, updatePlan, plansCol } from './plans'
 import {
   listMembers,
   upsertMember,
@@ -17,7 +16,7 @@ export async function publishPlanFromDraft(
   draft: CreatePlanDraft,
   hostId: string,
 ): Promise<Plan> {
-  const planId = doc(getDb(), 'plans').id
+  const planId = doc(plansCol()).id
   const fields = draftToPlanFields(draft, hostId)
   const plan = await createPlan(planId, {
     ...fields,
@@ -31,6 +30,11 @@ export async function publishPlanFromDraft(
     createdAt: now,
     updatedAt: now,
   })
+  try {
+    await ensureThreadForPlan(planId)
+  } catch (err) {
+    console.warn('Thread create after publish skipped:', err)
+  }
   return plan
 }
 

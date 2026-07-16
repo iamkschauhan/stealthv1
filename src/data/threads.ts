@@ -56,17 +56,24 @@ export async function upsertThread(
   data: Partial<Omit<Thread, 'id'>> &
     Pick<Thread, 'planId' | 'memberIds' | 'createdAt' | 'updatedAt'>,
 ): Promise<void> {
-  await setDoc(threadRef(threadId), data, { merge: true })
+  const cleaned = Object.fromEntries(
+    Object.entries(data).filter(([, v]) => v !== undefined),
+  )
+  await setDoc(threadRef(threadId), cleaned, { merge: true })
 }
 
 /** Thread id === planId so deep links `/messages/:planId` work. */
 export async function ensureThreadForPlan(planId: string): Promise<string | null> {
   const [plan, members] = await Promise.all([getPlan(planId), listMembers(planId)])
   if (!plan) return null
-  const active = members.filter((m) => m.role === 'host' || m.role === 'going')
-  if (active.length < 2) return null
 
-  const memberIds = [...new Set(active.map((m) => m.uid))]
+  const active = members.filter((m) => m.role === 'host' || m.role === 'going')
+  // Host alone is enough — chat opens right after posting a plan
+  const memberIds = [
+    ...new Set([plan.hostId, ...active.map((m) => m.uid)].filter(Boolean)),
+  ]
+  if (memberIds.length === 0) return null
+
   const existing = await getThread(planId)
   const now = Date.now()
   await upsertThread(planId, {

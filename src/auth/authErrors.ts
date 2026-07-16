@@ -26,14 +26,22 @@ export function friendlyAuthError(err: unknown): string {
     case 'captcha-check-failed':
     case 'missing-recaptcha-token':
     case 'invalid-recaptcha-token':
-      return 'Security check failed. Refresh the page and try again.'
+      return 'Security check failed. Refresh, complete the captcha if shown, or use the US test number 5555550100 / 123456 in local DEV.'
     case 'network-request-failed':
       return 'Network error. Check your connection and try again.'
     case 'user-disabled':
       return 'This account has been disabled.'
     case 'quota-exceeded':
       return 'SMS quota exceeded. Try again later or use a test number.'
+    case 'operation-not-allowed':
+      if (/region|sms/i.test(raw)) {
+        return 'SMS for this country is blocked in Firebase. Enable the region under Authentication → Settings → SMS region policy, or use a test phone (US +1 5555550100 / code 123456).'
+      }
+      return 'Phone sign-in is disabled for this project. Enable Phone in Firebase Authentication.'
     default:
+      if (/region enabled|sms unable/i.test(raw)) {
+        return 'SMS for this country is blocked in Firebase. Enable the region under Authentication → Settings → SMS region policy, or use a test phone (US +1 5555550100 / code 123456).'
+      }
       if (/recaptcha|captcha/i.test(raw)) {
         return 'Security check failed. Refresh the page and try again.'
       }

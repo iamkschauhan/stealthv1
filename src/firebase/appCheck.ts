@@ -12,15 +12,32 @@ export function getRecaptchaSiteKey(): string | undefined {
 }
 
 /**
- * Wire reCAPTCHA Enterprise site key for App Check (abuse protection).
- * Safe to call multiple times; failures are non-fatal in dev.
+ * App Check for production abuse protection.
+ * Skipped in DEV by default — a bad/mismatched Enterprise key floods Auth with
+ * `appCheck/recaptcha-error` and does not help local phone testing.
+ * Set VITE_APP_CHECK_FORCE=true to exercise App Check locally.
  */
 export function initAppCheck(): void {
   if (appCheckReady) return
+  if (import.meta.env.DEV && import.meta.env.VITE_APP_CHECK_FORCE !== 'true') {
+    return
+  }
+
   const siteKey = getRecaptchaSiteKey()
   if (!siteKey) return
 
+  // Typical Enterprise site keys look like 6L… — reject obvious placeholders
+  if (siteKey.length < 20) {
+    console.warn('App Check skipped: site key looks invalid')
+    return
+  }
+
   try {
+    if (import.meta.env.DEV) {
+      // Allows exchanging a debug token from the Console if App Check is enforced
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true
+    }
     initializeAppCheck(getFirebaseApp(), {
       provider: new ReCaptchaEnterpriseProvider(siteKey),
       isTokenAutoRefreshEnabled: true,
@@ -33,15 +50,18 @@ export function initAppCheck(): void {
 
 /**
  * Prefetch Identity Platform reCAPTCHA Enterprise config for phone Auth.
- * Required when the project enforces rCE for phone providers.
+ * In DEV we only enable test-mode verification and skip Enterprise prefetch —
+ * `initializeRecaptchaConfig` often throws `recaptchaKey undefined` until
+ * Console phone + rCE are fully linked.
  */
 export async function initPhoneRecaptchaConfig(): Promise<void> {
   if (recaptchaConfigReady) return
   try {
     const auth = getFirebaseAuth()
-    // Dev + test numbers: skip interactive reCAPTCHA challenge
     if (import.meta.env.DEV) {
       auth.settings.appVerificationDisabledForTesting = true
+      recaptchaConfigReady = true
+      return
     }
     await initializeRecaptchaConfig(auth)
     recaptchaConfigReady = true

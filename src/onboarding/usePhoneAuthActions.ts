@@ -19,11 +19,18 @@ export function usePhoneAuthActions() {
     setBusy(true)
     try {
       const e164 = toE164(data.countryCode, data.phone)
+      if (import.meta.env.DEV) {
+        console.info('[phoneAuth] sending code to', e164)
+      }
       patch({ phone: data.phone })
       await sendPhoneCode(e164)
       navigate('/onboarding/verify-code')
     } catch (err) {
-      setError(friendlyAuthError(err))
+      const e164 = toE164(data.countryCode, data.phone)
+      const msg = friendlyAuthError(err)
+      setError(
+        import.meta.env.DEV ? `${msg} (tried ${e164})` : msg,
+      )
       console.error(err)
     } finally {
       setBusy(false)

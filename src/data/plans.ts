@@ -37,8 +37,11 @@ export async function createPlan(
   planId: string,
   data: Omit<Plan, 'id'>,
 ): Promise<Plan> {
-  await setDoc(planRef(planId), data)
-  return { id: planId, ...data }
+  const cleaned = Object.fromEntries(
+    Object.entries(data).filter(([, v]) => v !== undefined),
+  ) as Omit<Plan, 'id'>
+  await setDoc(planRef(planId), cleaned)
+  return { id: planId, ...cleaned }
 }
 
 export async function updatePlan(

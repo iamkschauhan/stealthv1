@@ -8,7 +8,7 @@ Repo: [iamkschauhan/stealthv1](https://github.com/iamkschauhan/stealthv1)
 
 1. Copy `.env.example` → `.env` (do not commit `.env`).
 2. Fill `VITE_FIREBASE_*` from Firebase Console → Project settings → Your apps.
-3. Optional: `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY` for App Check + phone reCAPTCHA.
+3. Optional: `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY` for production App Check (skipped in local DEV by default).
 4. `npm install` then `npm run dev`.
 
 ## Client usage
@@ -43,6 +43,20 @@ PowerShell: quote the `--only` list as above.
 | Rules least-privilege pass | Live (S7) |
 | Demo seed helpers | `src/data/seed.ts` |
 
+## SMS region policy (required for real numbers)
+
+If you see `SMS unable to be sent until this region enabled` / `auth/operation-not-allowed`:
+
+1. Open [Authentication → Settings](https://console.firebase.google.com/project/datingpro-c8638/authentication/settings)
+2. Under **SMS region policy**, allow the country (e.g. **IN**, **US**) — or allow all regions while testing
+3. Save, wait about a minute, retry
+
+## reCAPTCHA / App Check
+
+Local DEV skips App Check by default (avoids `appCheck/recaptcha-error`). Phone Auth sets `appVerificationDisabledForTesting` so **test numbers** work without a real captcha.
+
+Production: set a valid reCAPTCHA Enterprise site key as `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY`. Force App Check in DEV only with `VITE_APP_CHECK_FORCE=true`.
+
 ## Test phone numbers (no SMS)
 
 | Phone | Code |
@@ -50,7 +64,7 @@ PowerShell: quote the `--only` list as above.
 | `+1 555-555-0100` | `123456` |
 | `+1 555-555-0101` | `654321` |
 
-Enter national digits `5555550100` on the phone screen (US +1).
+Use country **United States (+1)** and digits `5555550100`. Register them under Authentication → Phone → Phone numbers for testing if missing.
 
 ## Seed (dev)
 

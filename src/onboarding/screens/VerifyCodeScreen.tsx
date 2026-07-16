@@ -44,8 +44,9 @@ export function VerifyCodeScreen() {
   }
 
   const digits = data.phone.replace(/\D/g, '')
+  const cc = (data.countryCode || '+1').replace(/\D/g, '')
   const phoneDisplay = digits
-    ? `+1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`
+    ? `+${cc} ${digits}`
     : ''
 
   return (
